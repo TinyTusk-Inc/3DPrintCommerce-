@@ -1,0 +1,168 @@
+# Docker Compose - PRODUCTION
+# For deploying to Linux servers
+#
+# Usage: docker compose -f docker-compose.prod.yml up -d
+#
+# Services:
+#   - PostgreSQL Database (port 5432)
+#   - Node.js Backend API (port 3000)
+#   - React Frontend (port 3001)
+#
+# Environment variables should be set via .env.prod or server environment
+# For production, consider using Nginx for SSL/HTTPS and load balancing
+
+version: '3.9'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: 3d-ecommerce-db-prod
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.UTF-8"
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      # Persist database data on production server/volume
+      - postgres_prod_data:/var/lib/postgresql/data
+      # Optional: Backup directory
+      - postgres_backups:/backups
+    networks:
+      - ecommerce-prod-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+    deploy:
+      # Production resource limits
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+  # Node.js Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: 3d-ecommerce-api-prod
+    image: 3d-ecommerce-api:latest
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET}
+      EMAIL_SERVICE: ${EMAIL_SERVICE}
+      EMAIL_USER: ${EMAIL_USER}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - ecommerce-prod-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: always
+    deploy:
+      # Production resource limits
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '1'
+          memory: 512M
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: 3d-ecommerce-web-prod
+    image: 3d-ecommerce-web:latest
+    environment:
+      REACT_APP_API_BASE_URL: http://backend:3000/api
+      REACT_APP_RAZORPAY_KEY_ID: ${REACT_APP_RAZORPAY_KEY_ID}
+    ports:
+      - "3001:3000"
+    depends_on:
+      - backend
+    networks:
+      - ecommerce-prod-network
+    restart: always
+    deploy:
+      # Production resource limits
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+  # Optional: Nginx reverse proxy (recommended for production)
+  # Handles SSL/HTTPS, load balancing, and routes traffic to frontend and backend
+  # Uncomment to use instead of direct port access
+  # 
+  # When enabled:
+  #   - Frontend accessible at: https://yourdomain.com/
+  #   - Backend accessible at: https://yourdomain.com/api/
+  #   - Handles SSL certificates and HTTPS
+  # 
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: 3d-ecommerce-nginx
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - ./certs:/etc/nginx/certs:ro
+  #   depends_on:
+  #     - frontend
+  #     - backend
+  #   networks:
+  #     - ecommerce-prod-network
+  #   restart: always
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '1'
+  #         memory: 256M
+  #       reservations:
+  #         cpus: '0.5'
+  #         memory: 128M
+
+networks:
+  ecommerce-prod-network:
+    driver: bridge
+
+volumes:
+  postgres_prod_data:
+    driver: local
+  postgres_backups:
+    driver: local
