@@ -83,6 +83,35 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('authToken');
   }, []);
 
+  /**
+   * loginWithToken - Used by OAuthCallbackPage after a social login redirect.
+   * Decodes the JWT payload to extract user info without an extra API call.
+   */
+  const loginWithToken = useCallback((newToken) => {
+    try {
+      // Decode the JWT payload (base64url middle segment) — no signature check needed here,
+      // the server already validated it before issuing the redirect.
+      const payloadBase64 = newToken.split('.')[1];
+      const payload = JSON.parse(atob(payloadBase64.replace(/-/g, '+').replace(/_/g, '/')));
+
+      const userFromToken = {
+        id: payload.id,
+        email: payload.email,
+        is_admin: payload.is_admin,
+        is_seller: payload.is_seller
+      };
+
+      setToken(newToken);
+      setUser(userFromToken);
+      localStorage.setItem('authToken', newToken);
+
+      return { success: true, user: userFromToken };
+    } catch (err) {
+      console.error('[AuthContext] loginWithToken failed:', err);
+      return { success: false, error: 'Invalid token received' };
+    }
+  }, []);
+
   // Get current user profile
   const getProfile = useCallback(async () => {
     if (!token) return null;
@@ -113,7 +142,7 @@ export function AuthProvider({ children }) {
   }, [token, user, getProfile]);
 
   const isAuthenticated = !!token;
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.is_admin === true;
 
   const value = {
     user,
@@ -123,6 +152,7 @@ export function AuthProvider({ children }) {
     loading,
     error,
     login,
+    loginWithToken,
     register,
     logout,
     getProfile

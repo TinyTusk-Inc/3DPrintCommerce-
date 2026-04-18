@@ -7,6 +7,8 @@ const Order = require('../models/Order');
 const OrderItem = require('../models/OrderItem');
 const Product = require('../models/Product');
 const User = require('../models/User');
+const InventoryLog = require('../models/InventoryLog');
+const emailService = require('../services/emailService');
 const crypto = require('crypto');
 
 class OrderController {
@@ -306,6 +308,16 @@ class OrderController {
       // Update status
       const updatedOrder = await Order.updateStatus(id, status);
 
+      // Send email notification for shipped/delivered/paid
+      if (['paid', 'shipped', 'delivered'].includes(status)) {
+        const buyer = await User.findById(updatedOrder.user_id || order.user_id);
+        if (buyer?.email) {
+          emailService
+            .sendOrderStatusUpdate(updatedOrder, status, buyer.email)
+            .catch((err) => console.error('[orderController] Failed to send status email:', err.message));
+        }
+      }
+
       return res.status(200).json({
         order: updatedOrder,
         message: `Order status updated to ${status}`
@@ -390,43 +402,81 @@ class OrderController {
    */
   static async handleRazorpayWebhook(req, res) {
     try {
-      const { event, payload } = req.body;
       const razorpay_signature = req.headers['x-razorpay-signature'];
-
-      // Verify webhook signature (if secret is configured)
       const razorpay_webhook_secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+
+      // --- Signature verification (HMAC-SHA256) ---
       if (razorpay_webhook_secret) {
-        // This would require the request body as string for signature verification
-        // Typically done in middleware before JSON parsing
-        // For now, we'll log the warning
-        console.warn('Webhook signature verification not fully implemented. In production, verify signature before processing.');
+        if (!razorpay_signature) {
+          return res.status(400).json({ error: 'Missing webhook signature' });
+        }
+        // req.rawBody must be set by express.json({ verify: ... }) — see index.js
+        const rawBody = req.rawBody;
+        if (!rawBody) {
+          console.error('[webhook] rawBody not available — ensure express.json verify hook is configured');
+          return res.status(500).json({ error: 'Server misconfiguration: rawBody unavailable' });
+        }
+        const expectedSig = crypto
+          .createHmac('sha256', razorpay_webhook_secret)
+          .update(rawBody)
+          .digest('hex');
+
+        if (expectedSig !== razorpay_signature) {
+          console.warn('[webhook] Signature mismatch — rejecting request');
+          return res.status(400).json({ error: 'Invalid webhook signature' });
+        }
+      } else {
+        console.warn('[webhook] RAZORPAY_WEBHOOK_SECRET not set — skipping signature verification (unsafe in production)');
       }
 
-      // Handle different payment events
+      const { event, payload } = req.body;
+
+      // --- Payment success events ---
       if (event === 'payment.authorized' || event === 'payment.captured') {
         const payment = payload.payload.payment.entity;
         const razorpay_order_id = payment.order_id;
         const razorpay_payment_id = payment.id;
-        const amount = payment.amount / 100; // Convert from paise to rupees
+        const amount = payment.amount / 100; // paise → rupees
 
-        // Find order by Razorpay order ID
+        // Find order
         const order = await Order.findByRazorpayOrderId(razorpay_order_id);
         if (!order) {
-          return res.status(404).json({
-            error: 'Order not found for this payment'
-          });
+          return res.status(404).json({ error: 'Order not found for this payment' });
         }
 
-        // Verify amount matches
+        // Idempotency: already paid
+        if (order.status === 'paid') {
+          return res.status(200).json({ message: 'Already processed' });
+        }
+
+        // Verify amount
         if (Math.abs(order.total_price - amount) > 0.01) {
-          console.error('Amount mismatch for order:', razorpay_order_id);
-          return res.status(400).json({
-            error: 'Payment amount does not match order total'
+          console.error('[webhook] Amount mismatch for order:', razorpay_order_id);
+          return res.status(400).json({ error: 'Payment amount does not match order total' });
+        }
+
+        // Mark order as paid
+        const updatedOrder = await Order.updatePaymentInfo(order.id, razorpay_payment_id);
+
+        // Decrement stock for each item and log inventory change
+        const items = await OrderItem.listByOrder(order.id);
+        for (const item of items) {
+          await Product.decrementStock(item.product_id, item.quantity);
+          await InventoryLog.create({
+            product_id: item.product_id,
+            action: 'sold',
+            quantity_delta: -item.quantity,
+            reason: `Order ${order.id}`
           });
         }
 
-        // Update order with payment info
-        const updatedOrder = await Order.updatePaymentInfo(order.id, razorpay_payment_id);
+        // Send order confirmation email (fire-and-forget — don't block webhook response)
+        const buyer = await User.findById(order.user_id);
+        if (buyer?.email) {
+          emailService
+            .sendOrderConfirmation(updatedOrder, items, buyer.email)
+            .catch((err) => console.error('[webhook] Failed to send confirmation email:', err.message));
+        }
 
         return res.status(200).json({
           message: 'Payment processed successfully',
@@ -434,25 +484,19 @@ class OrderController {
         });
       }
 
+      // --- Payment failure ---
       if (event === 'payment.failed') {
         const payment = payload.payload.payment.entity;
         const razorpay_order_id = payment.order_id;
-
-        // Find and keep order in 'pending' status
         const order = await Order.findByRazorpayOrderId(razorpay_order_id);
         if (order) {
-          console.log('Payment failed for order:', order.id);
+          console.log('[webhook] Payment failed for order:', order.id);
         }
-
-        return res.status(200).json({
-          message: 'Payment failure recorded'
-        });
+        return res.status(200).json({ message: 'Payment failure recorded' });
       }
 
-      // Unknown event - acknowledge but don't process
-      return res.status(200).json({
-        message: 'Webhook received'
-      });
+      // Unknown event — acknowledge
+      return res.status(200).json({ message: 'Webhook received' });
     } catch (error) {
       console.error('Error handling Razorpay webhook:', error);
       return res.status(500).json({

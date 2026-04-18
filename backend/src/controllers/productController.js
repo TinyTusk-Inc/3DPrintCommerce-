@@ -3,7 +3,7 @@
  * Handles product listing, search, filtering, and admin product management
  */
 
-const { Product, Category, Review } = require('../models');
+const { Product, Category, Review, ProductVariant, ProductImage } = require('../models');
 
 /**
  * Get all products with pagination and filters
@@ -128,38 +128,23 @@ async function getProduct(req, res) {
   try {
     const { id } = req.params;
 
-    // Validate UUID format (basic check)
     if (!id || id.length !== 36) {
-      return res.status(400).json({
-        error: 'Invalid product ID format'
-      });
+      return res.status(400).json({ error: 'Invalid product ID format' });
     }
 
-    // Get product
-    const product = await Product.findById(id);
+    // Use enriched fetch that includes variants + images
+    const product = await Product.findByIdWithVariants(id);
     if (!product) {
-      return res.status(404).json({
-        error: 'Product not found'
-      });
+      return res.status(404).json({ error: 'Product not found' });
     }
 
-    // Get reviews for product
     const reviews = await Review.listByProduct(id, 10, 0);
-
-    // Get review stats
     const stats = await Review.getStats(id);
 
-    return res.status(200).json({
-      product,
-      reviews,
-      stats
-    });
+    return res.status(200).json({ product, reviews, stats });
   } catch (error) {
     console.error('Get product error:', error);
-    return res.status(500).json({
-      error: 'Failed to get product',
-      message: error.message
-    });
+    return res.status(500).json({ error: 'Failed to get product', message: error.message });
   }
 }
 
@@ -428,6 +413,151 @@ async function getProductsByCategory(req, res) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Variant Management (admin only)
+// ---------------------------------------------------------------------------
+
+/**
+ * POST /api/products/:id/variants
+ * Add a color variant to a product
+ *
+ * Body: { color_name, color_hex, price_delta, stock, is_default, sort_order }
+ */
+async function createVariant(req, res) {
+  try {
+    const { id } = req.params;
+    const { color_name, color_hex, price_delta = 0, stock = 0, is_default = false, sort_order = 0 } = req.body;
+
+    if (!color_name) {
+      return res.status(400).json({ error: 'color_name is required' });
+    }
+
+    const product = await Product.findById(id);
+    if (!product) return res.status(404).json({ error: 'Product not found' });
+
+    const variant = await ProductVariant.create({
+      product_id: id,
+      color_name,
+      color_hex,
+      price_delta: parseFloat(price_delta) || 0,
+      stock: parseInt(stock, 10) || 0,
+      is_default,
+      sort_order: parseInt(sort_order, 10) || 0
+    });
+
+    return res.status(201).json({ variant });
+  } catch (error) {
+    console.error('Create variant error:', error);
+    return res.status(500).json({ error: 'Failed to create variant', message: error.message });
+  }
+}
+
+/**
+ * PUT /api/products/:id/variants/:variantId
+ * Update a color variant
+ */
+async function updateVariant(req, res) {
+  try {
+    const { variantId } = req.params;
+    const { color_name, color_hex, price_delta, stock, is_default, sort_order } = req.body;
+
+    const variant = await ProductVariant.findById(variantId);
+    if (!variant) return res.status(404).json({ error: 'Variant not found' });
+
+    const updated = await ProductVariant.update(variantId, {
+      color_name,
+      color_hex,
+      price_delta: price_delta !== undefined ? parseFloat(price_delta) : undefined,
+      stock: stock !== undefined ? parseInt(stock, 10) : undefined,
+      is_default,
+      sort_order: sort_order !== undefined ? parseInt(sort_order, 10) : undefined
+    });
+
+    return res.status(200).json({ variant: updated });
+  } catch (error) {
+    console.error('Update variant error:', error);
+    return res.status(500).json({ error: 'Failed to update variant', message: error.message });
+  }
+}
+
+/**
+ * DELETE /api/products/:id/variants/:variantId
+ * Delete a color variant (cascades to its images)
+ */
+async function deleteVariant(req, res) {
+  try {
+    const { variantId } = req.params;
+
+    const variant = await ProductVariant.findById(variantId);
+    if (!variant) return res.status(404).json({ error: 'Variant not found' });
+
+    await ProductVariant.delete(variantId);
+    return res.status(200).json({ message: 'Variant deleted' });
+  } catch (error) {
+    console.error('Delete variant error:', error);
+    return res.status(500).json({ error: 'Failed to delete variant', message: error.message });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Image Management (admin only)
+// ---------------------------------------------------------------------------
+
+/**
+ * POST /api/products/:id/images
+ * Add an image to a product (shared or variant-specific)
+ *
+ * Body: { url, alt_text, sort_order, variant_id (optional) }
+ */
+async function addImage(req, res) {
+  try {
+    const { id } = req.params;
+    const { url, alt_text, sort_order = 0, variant_id = null } = req.body;
+
+    if (!url) return res.status(400).json({ error: 'url is required' });
+
+    const product = await Product.findById(id);
+    if (!product) return res.status(404).json({ error: 'Product not found' });
+
+    // If variant_id provided, verify it belongs to this product
+    if (variant_id) {
+      const variant = await ProductVariant.findById(variant_id);
+      if (!variant || variant.product_id !== id) {
+        return res.status(400).json({ error: 'variant_id does not belong to this product' });
+      }
+    }
+
+    const image = await ProductImage.create({
+      product_id: id,
+      variant_id,
+      url,
+      alt_text,
+      sort_order: parseInt(sort_order, 10) || 0
+    });
+
+    return res.status(201).json({ image });
+  } catch (error) {
+    console.error('Add image error:', error);
+    return res.status(500).json({ error: 'Failed to add image', message: error.message });
+  }
+}
+
+/**
+ * DELETE /api/products/:id/images/:imageId
+ * Remove an image from a product
+ */
+async function deleteImage(req, res) {
+  try {
+    const { imageId } = req.params;
+    const success = await ProductImage.delete(imageId);
+    if (!success) return res.status(404).json({ error: 'Image not found' });
+    return res.status(200).json({ message: 'Image deleted' });
+  } catch (error) {
+    console.error('Delete image error:', error);
+    return res.status(500).json({ error: 'Failed to delete image', message: error.message });
+  }
+}
+
 module.exports = {
   listProducts,
   getProduct,
@@ -435,5 +565,10 @@ module.exports = {
   updateProduct,
   deleteProduct,
   getLowStockProducts,
-  getProductsByCategory
+  getProductsByCategory,
+  createVariant,
+  updateVariant,
+  deleteVariant,
+  addImage,
+  deleteImage
 };

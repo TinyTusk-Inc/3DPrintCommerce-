@@ -89,7 +89,11 @@ function AdminDashboardPage() {
           <h3 style={{ margin: 0, color: '#2ecc71' }}>🚚 Fulfillment Queue</h3>
           <p style={{ color: '#666', marginTop: '10px' }}>Process and ship orders</p>
         </a>
-      </div>
+
+        <a href="/admin/products" className="card" style={{ textDecoration: 'none', cursor: 'pointer', paddingTop: '30px', paddingBottom: '30px', textAlign: 'center' }}>
+          <h3 style={{ margin: 0, color: '#9b59b6' }}>🎨 Product Management</h3>
+          <p style={{ color: '#666', marginTop: '10px' }}>Add products, colors, and images</p>
+        </a>      </div>
     </div>
   );
 }

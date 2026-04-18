@@ -109,4 +109,44 @@ router.delete('/:id', verifyToken, verifyAdmin, productController.deleteProduct)
  */
 router.get('/category/:categoryId', productController.getProductsByCategory);
 
+// ---------------------------------------------------------------------------
+// Variant routes (admin only)
+// ---------------------------------------------------------------------------
+
+/**
+ * POST /api/products/:id/variants
+ * Add a color variant to a product
+ * Body: { color_name, color_hex, price_delta, stock, is_default, sort_order }
+ */
+router.post('/:id/variants', verifyToken, verifyAdmin, productController.createVariant);
+
+/**
+ * PUT /api/products/:id/variants/:variantId
+ * Update a color variant
+ */
+router.put('/:id/variants/:variantId', verifyToken, verifyAdmin, productController.updateVariant);
+
+/**
+ * DELETE /api/products/:id/variants/:variantId
+ * Delete a color variant (cascades to its images)
+ */
+router.delete('/:id/variants/:variantId', verifyToken, verifyAdmin, productController.deleteVariant);
+
+// ---------------------------------------------------------------------------
+// Image routes (admin only)
+// ---------------------------------------------------------------------------
+
+/**
+ * POST /api/products/:id/images
+ * Add an image to a product
+ * Body: { url, alt_text, sort_order, variant_id (optional) }
+ */
+router.post('/:id/images', verifyToken, verifyAdmin, productController.addImage);
+
+/**
+ * DELETE /api/products/:id/images/:imageId
+ * Remove an image from a product
+ */
+router.delete('/:id/images/:imageId', verifyToken, verifyAdmin, productController.deleteImage);
+
 module.exports = router;

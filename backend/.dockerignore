@@ -1,9 +1,51 @@
+# =============================================================
+# backend/.dockerignore
+# Excludes files from the Docker build context.
+# Keeps the image lean and prevents secrets leaking into layers.
+# =============================================================
+
+# Dependencies — installed fresh inside the container via npm ci
 node_modules/
-npm-debug.log
-.git
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Git history — not needed inside the image
+.git/
 .gitignore
+.gitattributes
+
+# Secrets — injected at runtime via env vars, never baked in
 .env
 .env.local
-README.md
+.env.*.local
+.env.prod
+# .env.docker is NOT excluded — Docker Compose needs it for DB defaults
+# .env.example files are NOT excluded — they are safe templates
+
+# Docker meta files — no need to copy these into the image
 .dockerignore
 Dockerfile
+
+# Dev / editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Docs — not needed at runtime
+README.md
+*.md
+
+# Test coverage output
+coverage/
+.nyc_output/
+
+# Temp / upload dirs — created at runtime, not part of source
+uploads/
+temp/
+
+# Logs
+*.log

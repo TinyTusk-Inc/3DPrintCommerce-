@@ -9,7 +9,7 @@ const { User } = require('../models');
 
 const SALT_ROUNDS = 10;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-const JWT_EXPIRY = '7d'; // Token valid for 7 days
+const JWT_EXPIRY = process.env.JWT_EXPIRE || '7d';
 
 /**
  * Register a new user

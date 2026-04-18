@@ -141,6 +141,104 @@ class User {
     // For now, this is a placeholder
     throw new Error('User deletion not implemented');
   }
+
+  // ---------------------------------------------------------------------------
+  // Social Auth Methods
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Find user by Google ID
+   * @param {string} googleId 
+   * @returns {Promise} User object or null
+   */
+  static async findByGoogleId(googleId) {
+    const text = `
+      SELECT id, email, name, phone, avatar_url, is_seller, is_admin, google_id, facebook_id, created_at
+      FROM users
+      WHERE google_id = $1
+    `;
+    const res = await query(text, [googleId]);
+    return res.rows[0] || null;
+  }
+
+  /**
+   * Find user by Facebook ID
+   * @param {string} facebookId 
+   * @returns {Promise} User object or null
+   */
+  static async findByFacebookId(facebookId) {
+    const text = `
+      SELECT id, email, name, phone, avatar_url, is_seller, is_admin, google_id, facebook_id, created_at
+      FROM users
+      WHERE facebook_id = $1
+    `;
+    const res = await query(text, [facebookId]);
+    return res.rows[0] || null;
+  }
+
+  /**
+   * Link a Google account to an existing user
+   * @param {string} userId 
+   * @param {string} googleId 
+   * @param {string|null} avatarUrl 
+   * @returns {Promise} Updated user
+   */
+  static async linkGoogle(userId, googleId, avatarUrl = null) {
+    const text = `
+      UPDATE users
+      SET google_id = $2,
+          avatar_url = COALESCE($3, avatar_url),
+          updated_at = NOW()
+      WHERE id = $1
+      RETURNING id, email, name, avatar_url, is_seller, is_admin, google_id, facebook_id
+    `;
+    const res = await query(text, [userId, googleId, avatarUrl]);
+    return res.rows[0] || null;
+  }
+
+  /**
+   * Link a Facebook account to an existing user
+   * @param {string} userId 
+   * @param {string} facebookId 
+   * @param {string|null} avatarUrl 
+   * @returns {Promise} Updated user
+   */
+  static async linkFacebook(userId, facebookId, avatarUrl = null) {
+    const text = `
+      UPDATE users
+      SET facebook_id = $2,
+          avatar_url = COALESCE($3, avatar_url),
+          updated_at = NOW()
+      WHERE id = $1
+      RETURNING id, email, name, avatar_url, is_seller, is_admin, google_id, facebook_id
+    `;
+    const res = await query(text, [userId, facebookId, avatarUrl]);
+    return res.rows[0] || null;
+  }
+
+  /**
+   * Create a new user via social login (no password required)
+   * @param {object} data - { google_id, facebook_id, email, name, avatar_url }
+   * @returns {Promise} New user object
+   */
+  static async createSocialUser({ google_id = null, facebook_id = null, email, name, avatar_url = null }) {
+    const text = `
+      INSERT INTO users (email, name, google_id, facebook_id, avatar_url)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING id, email, name, avatar_url, is_seller, is_admin, google_id, facebook_id, created_at
+    `;
+    const values = [email, name, google_id, facebook_id, avatar_url];
+
+    try {
+      const res = await query(text, values);
+      return res.rows[0];
+    } catch (error) {
+      if (error.code === '23505') {
+        throw new Error('Email already exists');
+      }
+      throw error;
+    }
+  }
 }
 
 module.exports = User;

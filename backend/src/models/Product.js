@@ -46,9 +46,45 @@ class Product {
     `;
     const res = await query(text, [productId]);
     if (res.rows[0]) {
-      res.rows[0].image_urls = JSON.parse(res.rows[0].image_urls || '[]');
+      res.rows[0].image_urls = res.rows[0].image_urls || [];
     }
     return res.rows[0] || null;
+  }
+
+  /**
+   * Get product by ID with full variant + image data
+   * Use this for the product detail page.
+   * @param {string} productId
+   * @returns {Promise} Product with variants[] and images[]
+   */
+  static async findByIdWithVariants(productId) {
+    const ProductVariant = require('./ProductVariant');
+    const ProductImage = require('./ProductImage');
+
+    const product = await Product.findById(productId);
+    if (!product) return null;
+
+    const [variants, images] = await Promise.all([
+      ProductVariant.listByProduct(productId),
+      ProductImage.listByProduct(productId)
+    ]);
+
+    // Attach images to each variant for easy frontend consumption
+    const variantsWithImages = variants.map((v) => ({
+      ...v,
+      images: images.filter((img) => img.variant_id === v.id)
+    }));
+
+    // Shared images (no variant)
+    const sharedImages = images.filter((img) => img.variant_id === null);
+
+    return {
+      ...product,
+      variants: variantsWithImages,
+      shared_images: sharedImages,
+      // Convenience: hero image is the first shared image or first variant image
+      hero_image: sharedImages[0]?.url || variantsWithImages[0]?.images[0]?.url || null
+    };
   }
 
   /**
@@ -67,7 +103,7 @@ class Product {
     const res = await query(text, [limit, offset]);
     return res.rows.map(p => ({
       ...p,
-      image_urls: JSON.parse(p.image_urls || '[]')
+      image_urls: p.image_urls || []
     }));
   }
 
@@ -89,7 +125,7 @@ class Product {
     const res = await query(text, [categoryId, limit, offset]);
     return res.rows.map(p => ({
       ...p,
-      image_urls: JSON.parse(p.image_urls || '[]')
+      image_urls: p.image_urls || []
     }));
   }
 
@@ -150,6 +186,23 @@ class Product {
     if (res.rows[0]) {
       res.rows[0].image_urls = JSON.parse(res.rows[0].image_urls || '[]');
     }
+    return res.rows[0] || null;
+  }
+
+  /**
+   * Decrement stock quantity (called on payment confirmation)
+   * @param {string} productId
+   * @param {number} quantity - amount to subtract
+   * @returns {Promise} Updated product
+   */
+  static async decrementStock(productId, quantity) {
+    const text = `
+      UPDATE products
+      SET quantity_in_stock = GREATEST(0, quantity_in_stock - $2)
+      WHERE id = $1
+      RETURNING id, name, quantity_in_stock
+    `;
+    const res = await query(text, [productId, quantity]);
     return res.rows[0] || null;
   }
 

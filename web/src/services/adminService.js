@@ -78,5 +78,57 @@ export const adminService = {
       notes
     });
     return response.data;
+  },
+
+  // ---------------------------------------------------------------------------
+  // Product management
+  // ---------------------------------------------------------------------------
+
+  createProduct: async (data) => {
+    const response = await api.post('/products', data);
+    return response.data;
+  },
+
+  updateProduct: async (productId, data) => {
+    const response = await api.put(`/products/${productId}`, data);
+    return response.data;
+  },
+
+  deleteProduct: async (productId) => {
+    const response = await api.delete(`/products/${productId}`);
+    return response.data;
+  },
+
+  // ---------------------------------------------------------------------------
+  // Variant management
+  // ---------------------------------------------------------------------------
+
+  createVariant: async (productId, data) => {
+    const response = await api.post(`/products/${productId}/variants`, data);
+    return response.data;
+  },
+
+  updateVariant: async (productId, variantId, data) => {
+    const response = await api.put(`/products/${productId}/variants/${variantId}`, data);
+    return response.data;
+  },
+
+  deleteVariant: async (productId, variantId) => {
+    const response = await api.delete(`/products/${productId}/variants/${variantId}`);
+    return response.data;
+  },
+
+  // ---------------------------------------------------------------------------
+  // Image management
+  // ---------------------------------------------------------------------------
+
+  addProductImage: async (productId, data) => {
+    const response = await api.post(`/products/${productId}/images`, data);
+    return response.data;
+  },
+
+  deleteProductImage: async (productId, imageId) => {
+    const response = await api.delete(`/products/${productId}/images/${imageId}`);
+    return response.data;
   }
 };

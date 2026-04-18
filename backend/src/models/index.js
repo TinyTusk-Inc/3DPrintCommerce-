@@ -12,8 +12,11 @@
 
 module.exports = {
   User: require('./User'),
+  UserAddress: require('./UserAddress'),
   Category: require('./Category'),
   Product: require('./Product'),
+  ProductVariant: require('./ProductVariant'),
+  ProductImage: require('./ProductImage'),
   Order: require('./Order'),
   OrderItem: require('./OrderItem'),
   Review: require('./Review'),

@@ -1,5 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import { useAuth } from './hooks';
 import Navbar from './components/Navbar';
 
@@ -17,6 +19,8 @@ import OrderDetailPage from './pages/OrderDetailPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import AdminInventoryPage from './pages/AdminInventoryPage';
 import AdminFulfillmentPage from './pages/AdminFulfillmentPage';
+import AdminProductsPage from './pages/AdminProductsPage';
+import OAuthCallbackPage from './pages/OAuthCallbackPage';
 
 /**
  * ProtectedRoute - Route that requires authentication
@@ -54,13 +58,13 @@ function App() {
       <div className="app">
         <Navbar />
         <main className="main-content">
-          <Routes>
-            {/* Public routes */}
+          <Routes>            {/* Public routes */}
             <Route path="/" element={<HomePage />} />
             <Route path="/products" element={<ProductsPage />} />
             <Route path="/products/:productId" element={<ProductDetailPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/oauth-callback" element={<OAuthCallbackPage />} />
 
             {/* Protected routes */}
             <Route
@@ -129,11 +133,28 @@ function App() {
                 </AdminRoute>
               }
             />
+            <Route
+              path="/admin/products"
+              element={
+                <AdminRoute>
+                  <AdminProductsPage />
+                </AdminRoute>
+              }
+            />
 
             {/* Not found */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
+        <ToastContainer
+          position="bottom-right"
+          autoClose={3000}
+          hideProgressBar={false}
+          newestOnTop
+          closeOnClick
+          pauseOnHover
+          draggable
+        />
       </div>
     </Router>
   );

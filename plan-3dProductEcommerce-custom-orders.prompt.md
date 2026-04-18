@@ -33,12 +33,16 @@ Build a cross-platform ecommerce site (web + iOS/Android native apps) with dual 
 - **Server**: Node.js + Express REST API
 - **Database**: PostgreSQL (relational schema for products, orders, users, inventory, custom orders)
 - **Auth**: JWT-based authentication (token in localStorage for web, secure storage for React Native)
+- **Social Auth**: Google OAuth 2.0 and Facebook OAuth via Passport.js (`passport-google-oauth20`, `passport-facebook`). Auto-links to existing email/password account if same email found — no duplicate accounts. Admin account cannot use social login.
+- **Admin Auth**: `is_seller` flag on the `users` table identifies the admin/owner account. All `/api/admin/*` routes are protected by `requireAdmin` middleware that checks `req.user.is_seller === true`. Any request from a non-admin user returns `403 Forbidden`.
 - **Payment**: Razorpay UPI integration (webhook for payment callbacks)
-- **Email**: SendGrid, Nodemailer, or AWS SES for transactional emails
-- **Email Queue**: Bull (Redis) or Agenda (MongoDB) for async email processing
+- **Email**: SendGrid or Nodemailer for transactional emails (**Decision: use Nodemailer for MVP, migrate to SendGrid for production**)
+- **Email Queue**: Bull + Redis for async email processing (**Decision: Bull + Redis is the chosen queue; Agenda/MongoDB is not used**)
 - **File Validation**: Magic byte detection (file-type library) + format verification
 - **Virus Scanning**: ClamAV (self-hosted) or VirusTotal API integration
 - **File Storage**: AWS S3 or Cloudinary (private access, secure URLs)
+- **Error Handling**: All API errors return a consistent JSON shape: `{ "error": "Human-readable message", "code": "MACHINE_READABLE_CODE" }`. HTTP status codes follow REST conventions (400 bad request, 401 unauthenticated, 403 forbidden, 404 not found, 422 validation error, 500 server error).
+- **Rate Limiting**: `express-rate-limit` applied globally (100 req/15 min per IP) and tighter limits on auth endpoints (10 req/15 min) and file upload endpoints (20 req/hour).
 
 ### Deployment & Infrastructure
 - **Local Development**: Docker Compose (PostgreSQL in container)
@@ -145,20 +149,100 @@ DB_PASSWORD=postgres      # Change in staging/production!
 
 ---
 
+## Admin Account Creation
+
+### How Admin Accounts Work
+This is a single-seller platform — there is exactly one admin/owner account. The `is_seller` column on the `users` table is the flag that grants admin access. Regular users always have `is_seller = false`. The admin has `is_seller = true`.
+
+The admin account is **never created through the public registration endpoint** (`POST /api/auth/register`). That endpoint always creates regular users. This prevents anyone from self-promoting to admin.
+
+### Recommended Approach: Seed Script (MVP)
+The simplest and most common approach for a single-owner store is to create the admin account via a database seed script that runs once during initial setup.
+
+**`backend/scripts/create-admin.js`**
+```js
+// Run once: node scripts/create-admin.js
+const bcrypt = require('bcrypt');
+const { pool } = require('../src/config/database');
+
+async function createAdmin() {
+  const email = process.env.ADMIN_EMAIL || 'admin@yourstore.com';
+  const password = process.env.ADMIN_PASSWORD; // MUST be set in env, no default
+  if (!password) throw new Error('ADMIN_PASSWORD env variable is required');
+
+  const hash = await bcrypt.hash(password, 12);
+  await pool.query(
+    `INSERT INTO users (email, password_hash, name, is_seller)
+     VALUES ($1, $2, 'Store Owner', true)
+     ON CONFLICT (email) DO NOTHING`,
+    [email, hash]
+  );
+  console.log(`Admin account created: ${email}`);
+  process.exit(0);
+}
+
+createAdmin().catch(err => { console.error(err); process.exit(1); });
+```
+
+Add to `package.json` scripts:
+```json
+"create-admin": "node scripts/create-admin.js"
+```
+
+Run once after DB setup:
+```bash
+ADMIN_EMAIL=admin@yourstore.com ADMIN_PASSWORD=StrongPass123! npm run create-admin
+```
+
+### Environment Variables for Admin
+Add to `.env`:
+```env
+ADMIN_EMAIL=admin@yourstore.com
+ADMIN_PASSWORD=your_strong_password_here   # Only used by create-admin script
+```
+
+### Security Rules
+- `POST /api/auth/register` always sets `is_seller = false` — no exceptions
+- There is no API endpoint to promote a user to admin (out of scope for MVP)
+- The `requireAdmin` middleware checks `req.user.is_seller === true` on every admin route
+- Admin password should be strong (16+ chars) and stored only in `.env` (never committed to git)
+- The seed script uses `ON CONFLICT DO NOTHING` so re-running it is safe
+
+### Alternative: SQL Seed File
+If you prefer to handle it in the SQL migration/seed files:
+```sql
+-- In backend/seeds/001-initial-seed.sql
+-- Replace 'HASHED_PASSWORD_HERE' with the bcrypt hash generated separately
+INSERT INTO users (email, password_hash, name, is_seller)
+VALUES ('admin@yourstore.com', 'HASHED_PASSWORD_HERE', 'Store Owner', true)
+ON CONFLICT (email) DO NOTHING;
+```
+Generate the hash with: `node -e "require('bcrypt').hash('YourPassword', 12).then(console.log)"`
+
+### Admin Login Flow
+Admin logs in through the same `POST /api/auth/login` endpoint as regular users. The JWT payload includes `{ id, email, is_seller }`. The frontend checks `is_seller` to show/hide admin navigation. The backend `requireAdmin` middleware independently verifies `is_seller` on every protected route — the frontend check is UI-only and not a security boundary.
+
+---
+
 ## Data Model (PostgreSQL Schema)
 
 ### Core Tables
 
 #### users
 - `id` (PK, UUID)
-- `email` (unique)
-- `password_hash`
+- `email` (unique, nullable — social-only users may not have email if provider withholds it)
+- `password_hash` (nullable — NULL for social-only accounts)
 - `name`
 - `phone`
 - `address` (JSON or separate address table)
 - `is_seller` (boolean, always false for end users; true for owner)
+- `google_id` (VARCHAR, unique, nullable — set when user links Google)
+- `facebook_id` (VARCHAR, unique, nullable — set when user links Facebook)
+- `avatar_url` (TEXT, nullable — profile picture from social provider)
 - `created_at`
 - `updated_at`
+
+> **Account linking rule**: If a social login returns an email that already exists in the DB, the `google_id`/`facebook_id` is added to that existing user row — no duplicate account is created. A user must always have at least one login method (password OR a linked social provider).
 
 #### products
 - `id` (PK, UUID)
@@ -260,6 +344,9 @@ DB_PASSWORD=postgres      # Change in staging/production!
 
 #### End User Features
 - [ ] User registration/login (email + password)
+- [ ] Social login: Sign in with Google (OAuth 2.0)
+- [ ] Social login: Sign in with Facebook (OAuth 2.0)
+- [ ] Account linking: if social login email matches existing account, link automatically (no duplicate accounts)
 - [ ] Browse products on home page (grid layout)
 - [ ] Product detail page (images, description, price, reviews, ratings)
 - [ ] Add to cart & view cart
@@ -278,6 +365,9 @@ DB_PASSWORD=postgres      # Change in staging/production!
 - [ ] Express.js API setup (basic structure)
 - [ ] PostgreSQL database + migrations
 - [ ] User authentication (JWT tokens, password hashing with bcrypt)
+- [ ] Social auth: Passport.js with `passport-google-oauth20` and `passport-facebook`
+- [ ] OAuth callback routes: `GET /api/auth/google`, `GET /api/auth/google/callback`, `GET /api/auth/facebook`, `GET /api/auth/facebook/callback`
+- [ ] Account linking logic: auto-link by email on first social login
 - [ ] Razorpay UPI integration (payment order creation)
 - [ ] Razorpay webhook handler (order status update on payment success)
 - [ ] Email service setup (SendGrid, Nodemailer, or AWS SES)
@@ -286,6 +376,9 @@ DB_PASSWORD=postgres      # Change in staging/production!
 
 #### Verification Steps (Phase 1)
 - [ ] Create user account → login → token persists
+- [ ] Click "Sign in with Google" → redirected to Google → approve → logged in, JWT issued
+- [ ] Click "Sign in with Facebook" → redirected to Facebook → approve → logged in, JWT issued
+- [ ] Register with email, then sign in with Google (same email) → same account, google_id linked, no duplicate
 - [ ] Add product (admin) → appears on home page
 - [ ] Click product → detail page loads with images, description
 - [ ] Add product to cart → view cart → quantities correct
@@ -389,6 +482,8 @@ DB_PASSWORD=postgres      # Change in staging/production!
 - [ ] Handle safe areas (notches, home indicators)
 - [ ] Image optimization for mobile networks
 - [ ] Secure token storage (React Native Secure Storage, not localStorage)
+- [ ] No new backend API endpoints needed — Phase 1-3 API is sufficient for mobile
+- [ ] Push notification tokens are out of scope for MVP (use email notifications only)
 
 #### Build & Deployment
 - [ ] Build APK for Android testing
@@ -489,16 +584,23 @@ DB_PASSWORD=postgres      # Change in staging/production!
 #### Database & API Changes
 **New Tables**: custom_orders, custom_order_files (schemas above)
 
+**File Upload Flow (Two-Step)**:
+The custom order creation is a two-step process to keep the API clean and handle large files reliably:
+1. **Step 1 — Upload file**: `POST /api/custom-orders/upload` — multipart/form-data, returns `{ fileId, validationStatus }`. File is uploaded to S3/Cloudinary and validation begins asynchronously.
+2. **Step 2 — Create order**: `POST /api/custom-orders` — JSON body with `{ fileId, description, color, material, quantity, specialRequirements }`. References the already-uploaded file. Only allowed if `validationStatus === 'validated'` and `virusScanStatus === 'clean'`.
+
+This avoids bundling a 100MB file upload with form data in a single request and makes retry logic simpler.
+
 **New Backend Routes**:
-- `POST /api/custom-orders` (create custom order, accept file upload)
+- `POST /api/custom-orders/upload` (Step 1: upload file, returns fileId + starts async validation)
+- `POST /api/custom-orders` (Step 2: create order referencing validated fileId)
 - `GET /api/custom-orders` (user's custom orders list)
 - `GET /api/custom-orders/:id` (custom order detail + file info)
 - `POST /api/custom-orders/:id/files/:fileId/download` (admin downloads file securely)
 - `PUT /api/custom-orders/:id/quote` (admin approves, sets final price & delivery date)
 - `PUT /api/custom-orders/:id/status` (admin updates status: submitted → validating → approved → in_production → completed)
 - `GET /api/admin/custom-orders` (owner-only: all custom orders)
-- `POST /api/custom-orders/:id/validate-file` (server triggers file validation if needed)
-- `GET /api/custom-orders/:id/validation-status` (poll validation progress)
+- `GET /api/custom-orders/:id/validation-status` (poll validation progress after Step 1)
 
 **New Middleware**:
 - `fileUploadMiddleware.js`: Handle multipart/form-data, size limits, type checks
@@ -604,11 +706,13 @@ DB_PASSWORD=postgres      # Change in staging/production!
 2. User completes UPI transaction
 3. Razorpay calls backend webhook: `POST /webhooks/razorpay`
 4. Backend:
-   - Verifies webhook signature
+   - **Verifies webhook signature** using HMAC-SHA256: `crypto.createHmac('sha256', RAZORPAY_WEBHOOK_SECRET).update(rawBody).digest('hex')` — compare against `X-Razorpay-Signature` header. Reject with `400` if mismatch.
    - Updates order status to "paid"
    - Decrements product stock (if standard order)
    - Creates inventory logs
 5. Frontend detects change → shows success page
+
+> **Note**: `RAZORPAY_WEBHOOK_SECRET` is a separate secret from `RAZORPAY_KEY_SECRET`. Set it in Razorpay dashboard under Webhooks and add it to `.env`.
 
 ---
 
@@ -815,6 +919,21 @@ CREATE INDEX idx_email_logs_order_id ON email_logs(order_id);
 CREATE INDEX idx_email_logs_custom_order_id ON email_logs(custom_order_id);
 ```
 
+### Migration Versioning Strategy
+Migrations are numbered SQL files in `backend/migrations/` and run in order by the setup script. The convention is:
+
+```
+backend/migrations/
+├── 001-initial-schema.sql     (all tables, enums, indexes)
+├── 002-add-categories.sql     (if schema changes needed post-launch)
+└── 003-custom-orders.sql      (Phase 5 tables)
+```
+
+- **Never edit an already-applied migration** — always create a new numbered file
+- The `setup-db.js` script tracks which migrations have run using a `schema_migrations` table
+- To add a new migration: create `00N-description.sql`, run `npm run migrate`
+- Rollback: write a corresponding `00N-description-rollback.sql` and run manually if needed
+
 ---
 
 ## API Endpoint Summary
@@ -823,6 +942,10 @@ CREATE INDEX idx_email_logs_custom_order_id ON email_logs(custom_order_id);
 - `POST /api/auth/register` — Create new user
 - `POST /api/auth/login` — Login, return JWT
 - `POST /api/auth/logout` — Clear frontend token
+- `GET /api/auth/google` — Redirect to Google OAuth consent screen
+- `GET /api/auth/google/callback` — Handle Google OAuth callback, issue JWT
+- `GET /api/auth/facebook` — Redirect to Facebook OAuth consent screen
+- `GET /api/auth/facebook/callback` — Handle Facebook OAuth callback, issue JWT
 
 ### Products
 - `GET /api/products` — List all products (with filters)
@@ -849,14 +972,15 @@ CREATE INDEX idx_email_logs_custom_order_id ON email_logs(custom_order_id);
 - `POST /api/admin/restock` — Add stock to product
 
 ### Custom Orders (NEW - Phase 5)
-- `POST /api/custom-orders` — Create custom order, upload file(s)
+- `POST /api/custom-orders/upload` — Step 1: upload file (multipart), returns fileId + starts async validation
+- `POST /api/custom-orders` — Step 2: create order with validated fileId
 - `GET /api/custom-orders` — User's custom orders
 - `GET /api/custom-orders/:id` — Custom order detail
 - `POST /api/custom-orders/:id/files/:fileId/download` — Admin downloads file securely
 - `PUT /api/custom-orders/:id/quote` — Admin approves & sets price + delivery date
 - `PUT /api/custom-orders/:id/status` — Admin updates status
 - `GET /api/admin/custom-orders` — Owner-only: all custom orders
-- `GET /api/custom-orders/:id/validation-status` — Poll file validation progress
+- `GET /api/custom-orders/:id/validation-status` — Poll file validation progress (after Step 1)
 
 ### Webhooks
 - `POST /webhooks/razorpay` — Razorpay payment callback
@@ -866,7 +990,7 @@ CREATE INDEX idx_email_logs_custom_order_id ON email_logs(custom_order_id);
 ## Email Notification System
 
 ### Overview
-Email notifications are sent to users at key order & custom order milestones to keep them informed. All emails are sent asynchronously via a job queue (Bull + Redis or Agenda + MongoDB) to avoid blocking requests.
+Email notifications are sent to users at key order & custom order milestones to keep them informed. All emails are sent asynchronously via **Bull + Redis** (chosen queue for this project) to avoid blocking requests. Nodemailer is used for MVP; swap to SendGrid for production by changing `EMAIL_PROVIDER` in `.env`.
 
 ### Email Templates (Handlebars or EJS)
 
@@ -1019,14 +1143,12 @@ Email notifications are sent to users at key order & custom order milestones to 
 
 **Queue Options**:
 
-1. **Bull + Redis** (Recommended)
+1. **Bull + Redis** ✅ **CHOSEN for this project**
    - Fast, in-memory job processing
    - Reliable delivery & retries
-   - Requires Redis server
+   - Requires Redis server (add `redis` service to `docker-compose.yml`)
 
-2. **Agenda + MongoDB** (Alternative)
-   - Uses existing MongoDB if available
-   - Simpler setup if no Redis
+2. **Agenda + MongoDB** (not used — would require adding MongoDB as an extra dependency)
 
 ### Implementation Priority
 
@@ -1052,9 +1174,19 @@ Email notifications are sent to users at key order & custom order milestones to 
 NODE_ENV=development
 PORT=5000
 DATABASE_URL=postgresql://user:password@localhost:5432/ecommerce_3d
-JWT_SECRET=your_secret_key_here
+JWT_SECRET=your_secret_key_here   # Generate: node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+
+# Social Auth (OAuth 2.0) — Phase 1
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+FACEBOOK_APP_ID=your_facebook_app_id
+FACEBOOK_APP_SECRET=your_facebook_app_secret
+GOOGLE_CALLBACK_URL=http://localhost:3000/api/auth/google/callback
+FACEBOOK_CALLBACK_URL=http://localhost:3000/api/auth/facebook/callback
+
 RAZORPAY_KEY_ID=your_razorpay_key_id
 RAZORPAY_KEY_SECRET=your_razorpay_key_secret
+RAZORPAY_WEBHOOK_SECRET=your_razorpay_webhook_secret   # Set in Razorpay dashboard → Webhooks
 FRONTEND_URL=http://localhost:3000
 
 # Email Service
@@ -1073,10 +1205,8 @@ AWS_SES_SECRET_KEY=your_secret_key
 EMAIL_FROM=noreply@your-store.com
 EMAIL_FROM_NAME=Your 3D Store
 
-# Email Queue (optional, for async processing)
-REDIS_URL=redis://localhost:6379
-OR
-MONGO_QUEUE_URL=mongodb://localhost:27017/email_queue
+# Email Queue (Bull + Redis — required from Phase 2 onwards)
+REDIS_URL=redis://localhost:6379   # Use redis://redis:6379 when running in Docker
 
 # File Upload & Storage (Phase 5)
 AWS_S3_BUCKET=your-bucket-name
@@ -1167,6 +1297,7 @@ EXPO_PUBLIC_RAZORPAY_KEY_ID=your_razorpay_key_id
 | **Database** | PostgreSQL | Reliable, ACID compliance |
 | **ORM/Query Builder** | Sequelize or Knex.js | Easier DB interactions |
 | **Authentication** | JWT | Stateless, works for web & mobile |
+| **Social Auth** | Passport.js + Google/Facebook strategies | Industry standard OAuth 2.0 |
 | **Password Hashing** | bcrypt | Industry standard |
 | **Web Framework** | React | Largest ecosystem |
 | **Web UI Library** | Shadcn UI or Material-UI | Pre-built components |
@@ -1196,6 +1327,7 @@ EXPO_PUBLIC_RAZORPAY_KEY_ID=your_razorpay_key_id
 - Review/rating system
 - Order tracking
 - JWT authentication
+- **Social login: Google & Facebook OAuth** (Phase 1)
 - Responsive web + React Native mobile
 - Inventory management
 - **Email notifications** (order confirmation, status updates)
@@ -1212,7 +1344,6 @@ EXPO_PUBLIC_RAZORPAY_KEY_ID=your_razorpay_key_id
 - Wishlist/favorites
 - Product recommendations
 - Two-factor authentication
-- Social login (Google, Facebook)
 - Live chat support
 - Subscription/recurring orders
 - Product variants (colors, sizes)
@@ -1251,6 +1382,36 @@ EXPO_PUBLIC_RAZORPAY_KEY_ID=your_razorpay_key_id
 
 **Standard Orders**: pending → paid → shipped → delivered
 **Custom Orders**: submitted → validating → approved → in_production → completed (or cancelled)
+
+### Testing Strategy
+
+| Layer | Tool | What to Test |
+|-------|------|-------------|
+| Unit | Jest | Services (fileValidator, virusScanner, emailService), utility functions, validators |
+| Integration | Jest + Supertest | API endpoints with a real test DB (separate `ecommerce_3d_test` database) |
+| Frontend | React Testing Library | Component rendering, form validation, cart logic |
+| E2E | Playwright or Cypress | Full user flows: register → buy → checkout; admin: login → update order status |
+| File Validation | Jest | Test with valid STL/3DM/OBJ, corrupted files, renamed files, EICAR test file |
+
+**Coverage target**: 80% for backend services and controllers. Frontend components: critical paths only (auth, cart, checkout).
+
+Run tests with:
+```bash
+# Backend
+cd backend && npm test              # Jest, single run
+cd backend && npm run test:watch    # Watch mode during development
+
+# Frontend
+cd web && npm test -- --watchAll=false   # Single run (CI)
+```
+
+### Custom Order Cancellation (MVP Decision)
+Cancellation is **not supported in the MVP**. If a user wants to cancel, they must contact the store owner directly. The UI should:
+- Not show a "Cancel" button on custom orders
+- Show a note: "To cancel your order, please contact us at [email]"
+- The `custom_order_status` enum intentionally has no `cancelled` value in MVP
+
+This can be added in v2 with a proper cancellation + refund workflow.
 
 ---
 

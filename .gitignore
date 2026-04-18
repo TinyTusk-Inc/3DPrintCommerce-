@@ -1,50 +1,100 @@
+# =============================================================
 # Dependencies
+# =============================================================
 node_modules/
-package-lock.json
-yarn.lock
 
-# Environment variables
+# Lock files — commit these so everyone gets identical deps.
+# Uncomment the lines below ONLY if you intentionally want to
+# exclude lock files (not recommended).
+# package-lock.json
+# yarn.lock
+
+# =============================================================
+# Environment variables — NEVER commit real secrets
+# =============================================================
 .env
 .env.local
 .env.*.local
 .env.prod
+# .env.docker is NOT ignored — it only has Docker defaults (postgres/localhost),
+#   no real secrets. Committing it means Docker Compose works after a fresh clone.
+# .env.example files are NOT ignored — they are safe placeholder templates.
 
-# IDE
+# =============================================================
+# IDE / Editor
+# =============================================================
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 .DS_Store
+Thumbs.db
+.kiro/
 
+# =============================================================
 # Build outputs
+# =============================================================
 dist/
 build/
 .next/
 out/
+web/build/
+mobile/android/app/build/
+
+# =============================================================
+# Logs
+# =============================================================
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+lerna-debug.log*
 
-# Testing
+# =============================================================
+# Testing & coverage
+# =============================================================
 coverage/
 .nyc_output/
+*.lcov
 
-# OS
-Thumbs.db
-.DS_Store
+# =============================================================
+# SSL / Certificates — never commit private keys
+# =============================================================
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.pfx
 
-# Backend
+# =============================================================
+# Backend — runtime directories
+# =============================================================
 backend/uploads/
 backend/temp/
 
-# Mobile
+# =============================================================
+# Mobile — generated build artifacts
+# =============================================================
 mobile/android/app/debug/
 mobile/android/app/release/
+mobile/android/.gradle/
+mobile/android/local.properties
 mobile/ios/Pods/
 mobile/ios/Podfile.lock
+mobile/ios/build/
+mobile/.expo/
+mobile/dist/
 
-# Web
+# =============================================================
+# Web — cache only (public/ is SOURCE, do NOT ignore it)
+# =============================================================
 web/.cache/
-web/public/
+
+# =============================================================
+# Misc stray files
+# =============================================================
+process.exit(0)
+*.tmp
+*.temp

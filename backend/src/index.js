@@ -5,23 +5,81 @@
 
 const express = require('express');
 const cors = require('cors');
+const passport = require('./config/passport');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// ---------------------------------------------------------------------------
+// Rate limiting
+// ---------------------------------------------------------------------------
+
+// Global limiter — 100 requests per 15 minutes per IP
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later.' }
+});
+
+// Tighter limiter for auth endpoints — 10 requests per 15 minutes per IP
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many authentication attempts, please try again later.' }
+});
+
+// File upload limiter — 20 requests per hour per IP (for future Phase 5)
+const uploadLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Upload limit reached, please try again in an hour.' }
+});
+
 // Middleware
 app.use(cors());
+app.use(globalLimiter);
+
+// Capture raw body for Razorpay webhook signature verification
+// Must be registered BEFORE express.json() so the webhook route gets rawBody
+app.use((req, res, next) => {
+  if (req.path === '/api/orders/webhook/razorpay') {
+    let data = '';
+    req.setEncoding('utf8');
+    req.on('data', (chunk) => { data += chunk; });
+    req.on('end', () => {
+      req.rawBody = data;
+      try { req.body = JSON.parse(data); } catch (e) { req.body = {}; }
+      next();
+    });
+  } else {
+    next();
+  }
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Passport (no session — we use JWT; passport.initialize() is still required
+// by passport-google-oauth20 and passport-facebook for the OAuth dance)
+app.use(passport.initialize());
+
 // Routes
-app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/auth', authLimiter, require('./routes/authRoutes'));
+app.use('/api/auth', authLimiter, require('./routes/oauthRoutes'));
 app.use('/api/categories', require('./routes/categoryRoutes'));
 app.use('/api/products', require('./routes/productRoutes'));
 app.use('/api/orders', require('./routes/orderRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
-// app.use('/api/reviews', require('./routes/reviewRoutes'));
+app.use('/api/reviews', require('./routes/reviewRoutes'));
+app.use('/api/addresses', require('./routes/addressRoutes'));
 // app.use('/api/custom-orders', require('./routes/customOrderRoutes'));
 
 // Health check
@@ -92,3 +150,4 @@ app.listen(PORT, () => {
 });
 
 module.exports = app;
+module.exports.uploadLimiter = uploadLimiter;

@@ -14,6 +14,12 @@ export const productService = {
     return response.data;
   },
 
+  // Alias used by AdminProductsPage
+  getProducts: async (params = {}) => {
+    const response = await api.get('/products', { params });
+    return response.data;
+  },
+
   /**
    * Get single product
    */

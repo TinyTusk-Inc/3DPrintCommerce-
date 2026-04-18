@@ -1,10 +1,34 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../hooks/index';
+import ConfirmModal from '../components/ConfirmModal';
+import toast from '../components/toast';
 
 function CartPage() {
   const navigate = useNavigate();
   const { items, total, itemCount, removeItem, updateQuantity, clearCart } = useCart();
+  const [confirm, setConfirm] = useState(null); // { message, onConfirm }
+
+  const handleRemoveItem = (item) => {
+    setConfirm({
+      message: `Remove "${item.name}" from your cart?`,
+      onConfirm: () => {
+        removeItem(item.id);
+        toast.info(`"${item.name}" removed from cart`);
+      }
+    });
+  };
+
+  const handleClearCart = () => {
+    setConfirm({
+      message: 'Clear your entire cart? This cannot be undone.',
+      confirmLabel: 'Clear Cart',
+      onConfirm: () => {
+        clearCart();
+        toast.info('Cart cleared');
+      }
+    });
+  };
 
   if (items.length === 0) {
     return (
@@ -22,6 +46,16 @@ function CartPage() {
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px' }}>
+      {/* Confirm modal */}
+      {confirm && (
+        <ConfirmModal
+          message={confirm.message}
+          confirmLabel={confirm.confirmLabel || 'Remove'}
+          onConfirm={() => { confirm.onConfirm(); setConfirm(null); }}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
+
       {/* Cart Items */}
       <div>
         <h1 className="card-title">Shopping Cart</h1>
@@ -43,9 +77,14 @@ function CartPage() {
                   <td>
                     <Link to={`/products/${item.id}`} style={{ color: '#3498db' }}>
                       {item.name}
+                      {item.selectedVariantName && (
+                        <span style={{ color: '#888', fontSize: '12px', marginLeft: '6px' }}>
+                          ({item.selectedVariantName})
+                        </span>
+                      )}
                     </Link>
                   </td>
-                  <td>₹{item.price.toFixed(2)}</td>
+                  <td>₹{Number(item.price).toFixed(2)}</td>
                   <td>
                     <input
                       type="number"
@@ -56,10 +95,10 @@ function CartPage() {
                       style={{ width: '80px' }}
                     />
                   </td>
-                  <td>₹{(item.price * item.quantity).toFixed(2)}</td>
+                  <td>₹{(Number(item.price) * item.quantity).toFixed(2)}</td>
                   <td>
                     <button
-                      onClick={() => removeItem(item.id)}
+                      onClick={() => handleRemoveItem(item)}
                       className="btn btn-danger"
                       style={{ padding: '5px 10px', fontSize: '12px' }}
                     >
@@ -80,10 +119,7 @@ function CartPage() {
           >
             Continue Shopping
           </button>
-          <button
-            onClick={clearCart}
-            className="btn btn-secondary"
-          >
+          <button onClick={handleClearCart} className="btn btn-secondary">
             Clear Cart
           </button>
         </div>
