@@ -31,7 +31,14 @@ function OAuthCallbackPage() {
     if (result && result.success === false) {
       setError(result.error || 'Sign-in failed. Please try again.');
     } else {
-      navigate('/', { replace: true });
+      // If the social provider didn't share an email (rare Facebook edge case),
+      // send the user to their profile to add one before they can receive
+      // order confirmation and notification emails.
+      if (!result.user?.email) {
+        navigate('/profile?prompt=add-email', { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
     }
   }, [loginWithToken, navigate]);
 

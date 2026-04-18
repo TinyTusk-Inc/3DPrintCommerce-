@@ -55,7 +55,8 @@ class User {
    */
   static async findById(userId) {
     const text = `
-      SELECT id, email, name, phone, address, is_seller, is_admin, created_at, updated_at
+      SELECT id, email, email_verified, email_pending, name, phone, address,
+             is_seller, is_admin, created_at, updated_at
       FROM users
       WHERE id = $1
     `;
@@ -70,17 +71,17 @@ class User {
    * @returns {Promise} Updated user
    */
   static async updateProfile(userId, data) {
-    const { name, phone, address } = data;
+    const { name, phone, address, email } = data;
     const text = `
       UPDATE users
-      SET name = COALESCE($2, name),
-          phone = COALESCE($3, phone),
-          address = COALESCE($4, address)
+      SET name    = COALESCE($2, name),
+          phone   = COALESCE($3, phone),
+          address = COALESCE($4, address),
+          email   = COALESCE($5, email)
       WHERE id = $1
       RETURNING id, email, name, phone, address, is_seller, is_admin, updated_at
     `;
-    const values = [userId, name, phone, address ? JSON.stringify(address) : null];
-    
+    const values = [userId, name, phone, address ? JSON.stringify(address) : null, email || null];
     const res = await query(text, values);
     return res.rows[0] || null;
   }

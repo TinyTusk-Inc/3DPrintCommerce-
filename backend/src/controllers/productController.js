@@ -128,7 +128,8 @@ async function getProduct(req, res) {
   try {
     const { id } = req.params;
 
-    if (!id || id.length !== 36) {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(id)) {
       return res.status(400).json({ error: 'Invalid product ID format' });
     }
 
@@ -163,57 +164,48 @@ async function getProduct(req, res) {
  */
 async function createProduct(req, res) {
   try {
-    const { name, description, price, quantity_in_stock, category_id, image_urls } = req.body;
+    const { name, description, price, quantity_in_stock, category_id } = req.body;
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-    // Validate required fields
     if (!name || !description || price === undefined || !category_id) {
-      return res.status(400).json({
-        error: 'Missing required fields: name, description, price, category_id'
-      });
+      return res.status(400).json({ error: 'Missing required fields: name, description, price, category_id' });
     }
 
-    // Validate price
-    if (isNaN(price) || price < 0) {
-      return res.status(400).json({
-        error: 'Price must be a positive number'
-      });
+    // Length limits
+    if (name.length > 255) return res.status(400).json({ error: 'Product name must be 255 characters or less' });
+    if (description.length > 5000) return res.status(400).json({ error: 'Description must be 5000 characters or less' });
+
+    // Price must be > 0
+    const priceNum = parseFloat(price);
+    if (isNaN(priceNum) || priceNum <= 0) {
+      return res.status(400).json({ error: 'Price must be greater than 0' });
     }
 
-    // Validate category exists
+    // Stock must be non-negative integer
+    const stockNum = parseInt(quantity_in_stock, 10) || 0;
+    if (stockNum < 0) return res.status(400).json({ error: 'Stock cannot be negative' });
+
+    // Validate category_id is a UUID
+    if (!uuidRegex.test(category_id)) {
+      return res.status(400).json({ error: 'Invalid category_id format' });
+    }
+
     const category = await Category.findById(category_id);
-    if (!category) {
-      return res.status(404).json({
-        error: 'Category not found'
-      });
-    }
+    if (!category) return res.status(404).json({ error: 'Category not found' });
 
-    // Validate image URLs if provided
-    if (image_urls && !Array.isArray(image_urls)) {
-      return res.status(400).json({
-        error: 'image_urls must be an array'
-      });
-    }
-
-    // Create product
     const product = await Product.create({
-      seller_id: req.user.userId, // From auth middleware
+      seller_id: req.user.userId,
       name,
       description,
-      price: parseFloat(price),
-      quantity_in_stock: parseInt(quantity_in_stock, 10) || 0,
-      category_id,
-      image_urls: image_urls || []
+      price: priceNum,
+      quantity_in_stock: stockNum,
+      category_id
     });
 
-    return res.status(201).json({
-      product
-    });
+    return res.status(201).json({ product });
   } catch (error) {
     console.error('Create product error:', error);
-    return res.status(500).json({
-      error: 'Failed to create product',
-      message: error.message
-    });
+    return res.status(500).json({ error: 'Failed to create product', message: error.message });
   }
 }
 
@@ -428,21 +420,25 @@ async function createVariant(req, res) {
     const { id } = req.params;
     const { color_name, color_hex, price_delta = 0, stock = 0, is_default = false, sort_order = 0 } = req.body;
 
-    if (!color_name) {
-      return res.status(400).json({ error: 'color_name is required' });
-    }
+    if (!color_name) return res.status(400).json({ error: 'color_name is required' });
+    if (color_name.length > 100) return res.status(400).json({ error: 'color_name must be 100 characters or less' });
+
+    const priceDelta = parseFloat(price_delta) || 0;
+    const stockNum = parseInt(stock, 10) || 0;
+    if (stockNum < 0) return res.status(400).json({ error: 'Stock cannot be negative' });
 
     const product = await Product.findById(id);
     if (!product) return res.status(404).json({ error: 'Product not found' });
 
+    // price_delta cannot make the effective price negative
+    if (priceDelta < -Number(product.price)) {
+      return res.status(400).json({ error: 'Price delta cannot make the effective price negative' });
+    }
+
     const variant = await ProductVariant.create({
-      product_id: id,
-      color_name,
-      color_hex,
-      price_delta: parseFloat(price_delta) || 0,
-      stock: parseInt(stock, 10) || 0,
-      is_default,
-      sort_order: parseInt(sort_order, 10) || 0
+      product_id: id, color_name, color_hex,
+      price_delta: priceDelta, stock: stockNum,
+      is_default, sort_order: parseInt(sort_order, 10) || 0
     });
 
     return res.status(201).json({ variant });
@@ -515,6 +511,16 @@ async function addImage(req, res) {
     const { url, alt_text, sort_order = 0, variant_id = null } = req.body;
 
     if (!url) return res.status(400).json({ error: 'url is required' });
+
+    // Validate URL format
+    try { new URL(url); } catch {
+      return res.status(400).json({ error: 'Invalid image URL format' });
+    }
+
+    // Only allow http/https URLs — no data URIs or other schemes
+    if (!/^https?:\/\//i.test(url)) {
+      return res.status(400).json({ error: 'Image URL must use http or https' });
+    }
 
     const product = await Product.findById(id);
     if (!product) return res.status(404).json({ error: 'Product not found' });

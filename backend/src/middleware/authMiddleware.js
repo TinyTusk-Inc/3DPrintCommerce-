@@ -5,7 +5,11 @@
 
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+// Fail fast at module load time — never run with a missing or default JWT secret
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('FATAL: JWT_SECRET environment variable is required');
+}
 
 /**
  * Verify JWT token

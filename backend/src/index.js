@@ -5,9 +5,15 @@
 
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const passport = require('./config/passport');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
+
+// Fail fast if critical env vars are missing
+if (!process.env.JWT_SECRET) {
+  throw new Error('FATAL: JWT_SECRET environment variable is required');
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -44,7 +50,13 @@ const uploadLimiter = rateLimit({
 });
 
 // Middleware
-app.use(cors());
+app.use(helmet()); // Security headers (X-Frame-Options, X-Content-Type-Options, etc.)
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:3001',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(globalLimiter);
 
 // Capture raw body for Razorpay webhook signature verification
@@ -64,8 +76,8 @@ app.use((req, res, next) => {
   }
 });
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Passport (no session — we use JWT; passport.initialize() is still required
 // by passport-google-oauth20 and passport-facebook for the OAuth dance)

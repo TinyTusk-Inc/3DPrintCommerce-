@@ -162,5 +162,42 @@ async function sendOrderStatusUpdate(order, status, userEmail) {
 
 module.exports = {
   sendOrderConfirmation,
-  sendOrderStatusUpdate
+  sendOrderStatusUpdate,
+  sendEmailVerificationOtp
 };
+
+// ---------------------------------------------------------------------------
+// Email OTP template
+// ---------------------------------------------------------------------------
+
+function emailVerificationOtpHtml(otp, expiryMinutes) {
+  return `
+    <div style="font-family:sans-serif;max-width:500px;margin:auto">
+      <h2 style="color:#2c3e50">Verify your email address</h2>
+      <p>Use the code below to verify your email. It expires in <strong>${expiryMinutes} minutes</strong>.</p>
+      <div style="
+        font-size:36px;font-weight:bold;letter-spacing:10px;
+        text-align:center;padding:20px;margin:20px 0;
+        background:#f4f4f4;border-radius:8px;color:#2c3e50
+      ">${otp}</div>
+      <p style="color:#888;font-size:13px">
+        If you didn't request this, you can safely ignore this email.
+        Never share this code with anyone.
+      </p>
+    </div>
+  `;
+}
+
+/**
+ * Send email address verification OTP.
+ * @param {string} toEmail   - address being verified
+ * @param {string} otp       - plain 6-digit OTP
+ * @param {number} expiryMinutes
+ */
+async function sendEmailVerificationOtp(toEmail, otp, expiryMinutes) {
+  return sendMail({
+    to: toEmail,
+    subject: `${otp} — Your verification code for 3D Print Store`,
+    html: emailVerificationOtpHtml(otp, expiryMinutes)
+  });
+}

@@ -8,7 +8,8 @@ const jwt = require('jsonwebtoken');
 const { User } = require('../models');
 
 const SALT_ROUNDS = 10;
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) throw new Error('FATAL: JWT_SECRET environment variable is required');
 const JWT_EXPIRY = process.env.JWT_EXPIRE || '7d';
 
 /**
@@ -36,15 +37,21 @@ async function register(req, res) {
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      return res.status(400).json({
-        error: 'Invalid email format'
-      });
+      return res.status(400).json({ error: 'Invalid email format' });
     }
 
-    // Validate password strength (minimum 6 characters)
-    if (password.length < 6) {
+    // Validate field lengths
+    if (name.length > 255) {
+      return res.status(400).json({ error: 'Name must be 255 characters or less' });
+    }
+
+    // Validate password strength — min 8 chars, must have uppercase, lowercase, digit
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters long' });
+    }
+    if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/\d/.test(password)) {
       return res.status(400).json({
-        error: 'Password must be at least 6 characters long'
+        error: 'Password must contain at least one uppercase letter, one lowercase letter, and one number'
       });
     }
 
@@ -214,24 +221,34 @@ async function getCurrentUser(req, res) {
 async function updateProfile(req, res) {
   try {
     const userId = req.user.userId;
-    const { name, phone, address } = req.body;
+    const { name, phone, address, email } = req.body;
+
+    // Validate field lengths
+    if (name && name.length > 255) {
+      return res.status(400).json({ error: 'Name must be 255 characters or less' });
+    }
+    if (phone && phone.length > 20) {
+      return res.status(400).json({ error: 'Phone must be 20 characters or less' });
+    }
+
+    // Validate email format if provided
+    if (email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return res.status(400).json({ error: 'Invalid email format' });
+      }
+    }
 
     // Validate address if provided
     if (address && typeof address !== 'object') {
-      return res.status(400).json({
-        error: 'Address must be an object'
-      });
+      return res.status(400).json({ error: 'Address must be an object' });
     }
 
-    // Update user
-    const updatedUser = await User.updateProfile(userId, { name, phone, address });
+    const updatedUser = await User.updateProfile(userId, { name, phone, address, email });
     if (!updatedUser) {
-      return res.status(404).json({
-        error: 'User not found'
-      });
+      return res.status(404).json({ error: 'User not found' });
     }
 
-    // Return updated user
     return res.status(200).json({
       user: {
         id: updatedUser.id,
@@ -246,6 +263,9 @@ async function updateProfile(req, res) {
     });
   } catch (error) {
     console.error('Update profile error:', error);
+    if (error.code === '23505') {
+      return res.status(409).json({ error: 'That email address is already in use' });
+    }
     return res.status(500).json({
       error: 'Failed to update profile',
       message: error.message

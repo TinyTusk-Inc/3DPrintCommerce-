@@ -1,115 +1,144 @@
--- =========================================================
--- Seed Data for 3D Ecommerce Platform (Development)
--- =========================================================
+-- =============================================================
+-- Seed: 001-initial-seed.sql
+-- Development seed data for 3D Print Commerce Platform.
+-- Run after 001-schema.sql:
+--   psql -d ecommerce_3d_db -f backend/seeds/001-initial-seed.sql
+--
+-- Admin password hash below = bcrypt("Admin@123456", rounds=10)
+-- Change via: node scripts/create-admin.js
+-- =============================================================
 
--- Insert Admin User
+-- =============================================================
+-- ADMIN USER
+-- is_admin = TRUE, is_seller = TRUE
+-- Login: admin@3dprint.com / Admin@123456
+-- =============================================================
+
 INSERT INTO users (email, password_hash, name, phone, is_admin, is_seller)
 VALUES (
   'admin@3dprint.com',
-  '$2b$10$dummyhashvalue123456789012345678901234567890', -- dummy hash (use bcrypt in production)
-  'Admin User',
-  '+1-555-0001',
+  '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', -- "password" (bcrypt)
+  'Store Owner',
+  '+91-9999999999',
   TRUE,
   TRUE
-);
+)
+ON CONFLICT (email) DO NOTHING;
 
--- Insert Sample Categories
-INSERT INTO categories (name, description)
-VALUES
-  ('Miniatures & Models', 'Small-scale models and miniatures for gaming and collecting'),
-  ('Functional Parts', 'Useful items like organizers, holders, and replacement parts'),
-  ('Decorative Items', 'Home decor and display pieces'),
-  ('Toys & Games', 'Toys, game pieces, and gaming accessories'),
-  ('Tools & Hardware', 'Workshop tools and hardware solutions'),
-  ('Educational', 'Learning models and STEM projects');
+-- =============================================================
+-- CATEGORIES
+-- =============================================================
 
--- Insert Sample Products
-INSERT INTO products (seller_id, name, description, price, quantity_in_stock, category_id, image_urls)
-SELECT 
-  id,
+INSERT INTO categories (name, description) VALUES
+  ('Miniatures & Models',  'Small-scale models and miniatures for gaming and collecting'),
+  ('Functional Parts',     'Useful items like organizers, holders, and replacement parts'),
+  ('Decorative Items',     'Home decor and display pieces'),
+  ('Toys & Games',         'Toys, game pieces, and gaming accessories'),
+  ('Tools & Hardware',     'Workshop tools and hardware solutions'),
+  ('Educational',          'Learning models and STEM projects')
+ON CONFLICT (name) DO NOTHING;
+
+-- =============================================================
+-- PRODUCTS
+-- =============================================================
+
+INSERT INTO products (seller_id, name, description, price, quantity_in_stock, category_id)
+SELECT
+  u.id,
   'Dragon Figurine',
-  'Detailed 3D printed dragon figurine with intricate scales and wings',
+  'Detailed 3D printed dragon figurine with intricate scales and wings. Available in multiple colors.',
   24.99,
   50,
-  (SELECT id FROM categories WHERE name = 'Miniatures & Models'),
-  '["https://example.com/dragon1.jpg", "https://example.com/dragon2.jpg"]'::jsonb
-FROM users WHERE email = 'admin@3dprint.com'
-UNION ALL
-SELECT 
-  id,
+  c.id
+FROM users u, categories c
+WHERE u.email = 'admin@3dprint.com' AND c.name = 'Miniatures & Models'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO products (seller_id, name, description, price, quantity_in_stock, category_id)
+SELECT
+  u.id,
   'Cable Organizer',
-  'Desktop cable organizer with multiple slots for different cable types',
+  'Desktop cable organizer with multiple slots for different cable types.',
   12.99,
   100,
-  (SELECT id FROM categories WHERE name = 'Functional Parts'),
-  '["https://example.com/cable-org.jpg"]'::jsonb
-FROM users WHERE email = 'admin@3dprint.com'
-UNION ALL
-SELECT 
-  id,
-  'Plant Pot with Drainage',
-  'Modern hexagonal plant pot with integrated drainage system',
+  c.id
+FROM users u, categories c
+WHERE u.email = 'admin@3dprint.com' AND c.name = 'Functional Parts'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO products (seller_id, name, description, price, quantity_in_stock, category_id)
+SELECT
+  u.id,
+  'Hexagonal Plant Pot',
+  'Modern hexagonal plant pot with integrated drainage system.',
   18.50,
   75,
-  (SELECT id FROM categories WHERE name = 'Decorative Items'),
-  '["https://example.com/pot1.jpg", "https://example.com/pot2.jpg"]'::jsonb
-FROM users WHERE email = 'admin@3dprint.com'
-UNION ALL
-SELECT 
-  id,
-  'Chess Set - Modern Design',
-  'Contemporary 3D printed chess set with sleek geometric pieces',
+  c.id
+FROM users u, categories c
+WHERE u.email = 'admin@3dprint.com' AND c.name = 'Decorative Items'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO products (seller_id, name, description, price, quantity_in_stock, category_id)
+SELECT
+  u.id,
+  'Chess Set — Modern Design',
+  'Contemporary 3D printed chess set with sleek geometric pieces.',
   49.99,
   30,
-  (SELECT id FROM categories WHERE name = 'Toys & Games'),
-  '["https://example.com/chess1.jpg", "https://example.com/chess2.jpg"]'::jsonb
-FROM users WHERE email = 'admin@3dprint.com'
-UNION ALL
-SELECT 
-  id,
+  c.id
+FROM users u, categories c
+WHERE u.email = 'admin@3dprint.com' AND c.name = 'Toys & Games'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO products (seller_id, name, description, price, quantity_in_stock, category_id)
+SELECT
+  u.id,
   'Wrench Organizer Rack',
-  'Wall-mounted tool organizer for wrenches and tools',
+  'Wall-mounted tool organizer for wrenches and tools.',
   15.99,
   60,
-  (SELECT id FROM categories WHERE name = 'Tools & Hardware'),
-  '["https://example.com/wrench-rack.jpg"]'::jsonb
-FROM users WHERE email = 'admin@3dprint.com'
-UNION ALL
-SELECT 
-  id,
-  'Human Anatomy Model',
-  'Detailed anatomical heart model for educational purposes',
+  c.id
+FROM users u, categories c
+WHERE u.email = 'admin@3dprint.com' AND c.name = 'Tools & Hardware'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO products (seller_id, name, description, price, quantity_in_stock, category_id)
+SELECT
+  u.id,
+  'Anatomical Heart Model',
+  'Detailed anatomical heart model for educational purposes.',
   35.00,
   20,
-  (SELECT id FROM categories WHERE name = 'Educational'),
-  '["https://example.com/anatomy1.jpg", "https://example.com/anatomy2.jpg"]'::jsonb
-FROM users WHERE email = 'admin@3dprint.com';
+  c.id
+FROM users u, categories c
+WHERE u.email = 'admin@3dprint.com' AND c.name = 'Educational'
+ON CONFLICT DO NOTHING;
 
--- Insert Sample Reviews
-INSERT INTO reviews (product_id, user_id, rating, text)
-SELECT 
-  p.id,
-  u.id,
-  5,
-  'Excellent quality and detail! Arrived exactly as described.'
-FROM products p
-JOIN users u ON u.email = 'admin@3dprint.com'
-WHERE p.name = 'Dragon Figurine'
-LIMIT 1;
+-- =============================================================
+-- PRODUCT VARIANTS (Dragon Figurine — 3 colors)
+-- =============================================================
 
--- Insert Sample Inventory Logs
+INSERT INTO product_variants (product_id, color_name, color_hex, price_delta, stock, is_default, sort_order)
+SELECT p.id, 'Obsidian Black', '#1a1a1a', 0.00,    20, TRUE,  0 FROM products p WHERE p.name = 'Dragon Figurine'
+UNION ALL
+SELECT p.id, 'Dragon Red',     '#c0392b', 2.00,    15, FALSE, 1 FROM products p WHERE p.name = 'Dragon Figurine'
+UNION ALL
+SELECT p.id, 'Ice White',      '#ecf0f1', 0.00,    15, FALSE, 2 FROM products p WHERE p.name = 'Dragon Figurine';
+
+-- =============================================================
+-- INVENTORY LOGS (initial stock entries)
+-- =============================================================
+
 INSERT INTO inventory_logs (product_id, action, quantity_delta, reason)
-SELECT 
-  id,
-  'add',
-  50,
-  'initial_stock'
-FROM products WHERE name = 'Dragon Figurine';
+SELECT id, 'add', quantity_in_stock, 'initial_stock'
+FROM products;
 
--- =========================================================
--- NOTES FOR DEVELOPMENT
--- =========================================================
--- 1. Replace dummy password hashes with real bcrypt hashes in production
--- 2. Use real image URLs or upload images to S3/Cloudinary
--- 3. Add more sample products as needed for testing
--- 4. Add test user accounts for different scenarios (customer, admin, etc.)
+-- =============================================================
+-- NOTES
+-- =============================================================
+-- 1. Admin password above is a well-known bcrypt hash of "password".
+--    Change it immediately via: node scripts/create-admin.js
+-- 2. Add real product images via the admin UI (/admin/products)
+--    after the app is running.
+-- 3. Add a test customer account manually or via POST /api/auth/register
+-- =============================================================

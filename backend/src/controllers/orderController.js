@@ -37,81 +37,76 @@ class OrderController {
   static async createOrder(req, res) {
     try {
       const { items, shipping_address } = req.body;
-      const user_id = req.user.id;
+      const user_id = req.user.userId || req.user.id;
 
-      // Validate inputs
       if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ error: 'Items array is required and cannot be empty' });
+      }
+
+      // Cap items array to prevent abuse
+      if (items.length > 50) {
+        return res.status(400).json({ error: 'Cannot order more than 50 distinct items at once' });
+      }
+
+      if (!shipping_address || !shipping_address.name || !shipping_address.phone ||
+          !shipping_address.street || !shipping_address.city || !shipping_address.state) {
         return res.status(400).json({
-          error: 'Items array is required and cannot be empty'
+          error: 'Complete shipping address is required (name, phone, street, city, state)'
         });
       }
 
-      if (!shipping_address || !shipping_address.name || !shipping_address.email || !shipping_address.phone) {
-        return res.status(400).json({
-          error: 'Complete shipping address is required (name, email, phone, street, city, state, zip, country)'
-        });
+      // Validate shipping address field lengths
+      if (shipping_address.name.length > 255 || shipping_address.street.length > 500) {
+        return res.status(400).json({ error: 'Shipping address fields exceed maximum length' });
       }
 
-      // Validate items and calculate total
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
       let total_price = 0;
       const validatedItems = [];
 
       for (const item of items) {
-        if (!item.product_id || !item.quantity || item.quantity < 1) {
-          return res.status(400).json({
-            error: 'Each item must have product_id and quantity >= 1'
-          });
+        // Strict positive integer validation for quantity
+        const qty = parseInt(item.quantity, 10);
+        if (!item.product_id || !Number.isInteger(qty) || qty <= 0 || qty > 9999) {
+          return res.status(400).json({ error: 'Each item must have a valid product_id and quantity (1–9999)' });
         }
 
-        // Get product details
+        // Validate product_id is a UUID
+        if (!uuidRegex.test(item.product_id)) {
+          return res.status(400).json({ error: 'Invalid product_id format' });
+        }
+
         const product = await Product.findById(item.product_id);
         if (!product) {
-          return res.status(404).json({
-            error: `Product ${item.product_id} not found`
-          });
+          return res.status(404).json({ error: `Product ${item.product_id} not found` });
         }
 
-        // Check stock
-        if (product.quantity_in_stock < item.quantity) {
+        if (product.quantity_in_stock < qty) {
           return res.status(400).json({
-            error: `Product "${product.name}" only has ${product.quantity_in_stock} in stock, but ${item.quantity} requested`
+            error: `Product "${product.name}" only has ${product.quantity_in_stock} in stock, but ${qty} requested`
           });
         }
 
-        // Calculate line total
-        const line_total = product.price * item.quantity;
-        total_price += line_total;
-
-        validatedItems.push({
-          product_id: item.product_id,
-          quantity: item.quantity,
-          price_at_purchase: product.price,
-          product
-        });
+        total_price += product.price * qty;
+        validatedItems.push({ product_id: item.product_id, quantity: qty, price_at_purchase: product.price, product });
       }
 
-      // Prevent free orders
       if (total_price <= 0) {
-        return res.status(400).json({
-          error: 'Order total must be greater than 0'
-        });
+        return res.status(400).json({ error: 'Order total must be greater than 0' });
       }
 
-      // Create Razorpay order ID (we'll integrate with Razorpay API later)
-      // For now, generate a unique order ID
       const razorpay_order_id = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-      // Create order in database
       const order = await Order.create({
         user_id,
-        seller_id: validatedItems[0].product.seller_id, // Could be multi-seller, simplified for now
+        seller_id: validatedItems[0].product.seller_id,
         status: 'pending',
         total_price,
         razorpay_order_id,
         shipping_address
       });
 
-      // Create order items
       const order_items = [];
       for (const item of validatedItems) {
         const order_item = await OrderItem.create({
@@ -123,7 +118,6 @@ class OrderController {
         order_items.push(order_item);
       }
 
-      // Return order with items
       return res.status(201).json({
         order: {
           id: order.id,
@@ -216,31 +210,24 @@ class OrderController {
   static async getOrderDetail(req, res) {
     try {
       const { id } = req.params;
-      const user_id = req.user.id;
+      const user_id = req.user.userId || req.user.id;
 
-      // Validate ID format
-      if (!id || id.length < 36) {
-        return res.status(400).json({
-          error: 'Invalid order ID format'
-        });
+      // Validate UUID format
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(id)) {
+        return res.status(400).json({ error: 'Invalid order ID format' });
       }
 
-      // Get order
       const order = await Order.findById(id);
       if (!order) {
-        return res.status(404).json({
-          error: 'Order not found'
-        });
+        return res.status(404).json({ error: 'Order not found' });
       }
 
-      // Check authorization (user can only see their own orders, admin can see all)
-      if (order.user_id !== user_id && req.user.role !== 'admin') {
-        return res.status(403).json({
-          error: 'Not authorized to view this order'
-        });
+      // FIXED: was checking req.user.role which doesn't exist — use req.user.is_admin
+      if (order.user_id !== user_id && !req.user.is_admin) {
+        return res.status(403).json({ error: 'Not authorized to view this order' });
       }
 
-      // Get order items
       const items = await OrderItem.listByOrder(order.id);
 
       return res.status(200).json({
@@ -248,7 +235,9 @@ class OrderController {
           ...order,
           items,
           item_count: items.length,
-          shipping_address: JSON.parse(order.shipping_address || 'null')
+          shipping_address: typeof order.shipping_address === 'string'
+            ? JSON.parse(order.shipping_address)
+            : order.shipping_address
         }
       });
     } catch (error) {
@@ -339,32 +328,24 @@ class OrderController {
   static async cancelOrder(req, res) {
     try {
       const { id } = req.params;
-      const user_id = req.user.id;
-      const user_role = req.user.role;
+      const user_id = req.user.userId || req.user.id;
 
-      // Get order
       const order = await Order.findById(id);
       if (!order) {
-        return res.status(404).json({
-          error: 'Order not found'
-        });
+        return res.status(404).json({ error: 'Order not found' });
       }
 
-      // Check authorization
-      if (order.user_id !== user_id && user_role !== 'admin') {
-        return res.status(403).json({
-          error: 'Not authorized to cancel this order'
-        });
+      // FIXED: was checking req.user.role which doesn't exist — use req.user.is_admin
+      if (order.user_id !== user_id && !req.user.is_admin) {
+        return res.status(403).json({ error: 'Not authorized to cancel this order' });
       }
 
-      // Check if order can be cancelled (only pending orders)
       if (order.status !== 'pending' && order.status !== 'paid') {
         return res.status(400).json({
           error: `Cannot cancel order with status: ${order.status}`
         });
       }
 
-      // Update status to cancelled
       const cancelledOrder = await Order.updateStatus(id, 'cancelled');
 
       return res.status(200).json({
@@ -405,15 +386,19 @@ class OrderController {
       const razorpay_signature = req.headers['x-razorpay-signature'];
       const razorpay_webhook_secret = process.env.RAZORPAY_WEBHOOK_SECRET;
 
-      // --- Signature verification (HMAC-SHA256) ---
+      // In production, webhook secret is mandatory
+      if (!razorpay_webhook_secret && process.env.NODE_ENV === 'production') {
+        console.error('[webhook] RAZORPAY_WEBHOOK_SECRET not set in production — rejecting all webhook calls');
+        return res.status(500).json({ error: 'Webhook not configured' });
+      }
+
       if (razorpay_webhook_secret) {
         if (!razorpay_signature) {
           return res.status(400).json({ error: 'Missing webhook signature' });
         }
-        // req.rawBody must be set by express.json({ verify: ... }) — see index.js
         const rawBody = req.rawBody;
         if (!rawBody) {
-          console.error('[webhook] rawBody not available — ensure express.json verify hook is configured');
+          console.error('[webhook] rawBody not available');
           return res.status(500).json({ error: 'Server misconfiguration: rawBody unavailable' });
         }
         const expectedSig = crypto
@@ -426,7 +411,7 @@ class OrderController {
           return res.status(400).json({ error: 'Invalid webhook signature' });
         }
       } else {
-        console.warn('[webhook] RAZORPAY_WEBHOOK_SECRET not set — skipping signature verification (unsafe in production)');
+        console.warn('[webhook] RAZORPAY_WEBHOOK_SECRET not set — skipping verification (dev only)');
       }
 
       const { event, payload } = req.body;
@@ -436,24 +421,25 @@ class OrderController {
         const payment = payload.payload.payment.entity;
         const razorpay_order_id = payment.order_id;
         const razorpay_payment_id = payment.id;
-        const amount = payment.amount / 100; // paise → rupees
 
-        // Find order
         const order = await Order.findByRazorpayOrderId(razorpay_order_id);
         if (!order) {
           return res.status(404).json({ error: 'Order not found for this payment' });
         }
 
-        // Idempotency: already paid
         if (order.status === 'paid') {
           return res.status(200).json({ message: 'Already processed' });
         }
 
-        // Verify amount
-        if (Math.abs(order.total_price - amount) > 0.01) {
-          console.error('[webhook] Amount mismatch for order:', razorpay_order_id);
+        // Verify amount — compare in paise (integers) to avoid float precision issues
+        const expectedPaise = Math.round(Number(order.total_price) * 100);
+        if (payment.amount !== expectedPaise) {
+          console.error('[webhook] Amount mismatch for order:', razorpay_order_id,
+            `expected ${expectedPaise} paise, got ${payment.amount}`);
           return res.status(400).json({ error: 'Payment amount does not match order total' });
         }
+
+        const amount = payment.amount / 100; // paise → rupees for DB storage
 
         // Mark order as paid
         const updatedOrder = await Order.updatePaymentInfo(order.id, razorpay_payment_id);

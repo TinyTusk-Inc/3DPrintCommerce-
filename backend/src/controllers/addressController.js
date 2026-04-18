@@ -36,6 +36,12 @@ async function createAddress(req, res) {
       });
     }
 
+    // Length limits
+    if (name.length > 255) return res.status(400).json({ error: 'Name must be 255 characters or less' });
+    if (street.length > 500) return res.status(400).json({ error: 'Street must be 500 characters or less' });
+    if (city.length > 100) return res.status(400).json({ error: 'City must be 100 characters or less' });
+    if (state.length > 100) return res.status(400).json({ error: 'State must be 100 characters or less' });
+
     // Validate Indian pincode format (6 digits)
     if (!/^\d{6}$/.test(pincode)) {
       return res.status(422).json({ error: 'Pincode must be a 6-digit number' });
