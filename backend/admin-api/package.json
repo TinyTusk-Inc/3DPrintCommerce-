@@ -1,0 +1,14 @@
+{
+  "name": "3d-ecommerce-admin-api",
+  "version": "1.0.0",
+  "description": "Admin-only API server for 3D Print Commerce — internal use, never exposed to internet",
+  "main": "../src/adminServer.js",
+  "scripts": {
+    "start": "node ../src/adminServer.js",
+    "dev":   "nodemon ../src/adminServer.js",
+    "test":  "jest"
+  },
+  "keywords": ["ecommerce", "3d-printing", "api", "admin"],
+  "license": "ISC",
+  "note": "Dependencies are managed in the parent backend/package.json. Run 'npm install' from backend/ not here."
+}

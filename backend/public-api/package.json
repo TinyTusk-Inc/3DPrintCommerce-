@@ -1,0 +1,14 @@
+{
+  "name": "3d-ecommerce-public-api",
+  "version": "1.0.0",
+  "description": "Public-facing API server for 3D Print Commerce — end-user routes only",
+  "main": "../src/index.js",
+  "scripts": {
+    "start": "node ../src/index.js",
+    "dev":   "nodemon ../src/index.js",
+    "test":  "jest"
+  },
+  "keywords": ["ecommerce", "3d-printing", "api", "public"],
+  "license": "ISC",
+  "note": "Dependencies are managed in the parent backend/package.json. Run 'npm install' from backend/ not here."
+}
