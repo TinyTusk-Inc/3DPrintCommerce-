@@ -51,6 +51,7 @@ npm install
 npm run setup-db:seed
 
 # 3. Start development
+export REACT_APP_USE_FAKE_API=true #To use FAKE_API for testing
 npm run dev
 ```
 

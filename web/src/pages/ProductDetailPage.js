@@ -2,6 +2,19 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { productService } from '../services/productService';
 import { useCart } from '../hooks/index';
+import Container from '@mui/material/Container';
+import Grid from '@mui/material/Grid';
+import Box from '@mui/material/Box';
+import Card from '@mui/material/Card';
+import CardMedia from '@mui/material/CardMedia';
+import CardContent from '@mui/material/CardContent';
+import Typography from '@mui/material/Typography';
+import Button from '@mui/material/Button';
+import Chip from '@mui/material/Chip';
+import TextField from '@mui/material/TextField';
+import Stack from '@mui/material/Stack';
+import CircularProgress from '@mui/material/CircularProgress';
+import Alert from '@mui/material/Alert';
 
 function ProductDetailPage() {
   const { productId } = useParams();
@@ -107,193 +120,145 @@ function ProductDetailPage() {
   // Render
   // ---------------------------------------------------------------------------
 
-  if (loading) {
-    return <div className="loading"><div className="spinner" />Loading...</div>;
-  }
-  if (error) return <div className="alert alert-danger">{error}</div>;
-  if (!product) return <div className="alert alert-danger">Product not found</div>;
+  if (loading) return (
+    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 6 }}>
+      <CircularProgress />
+    </Box>
+  );
+  if (error) return <Alert severity="error">{error}</Alert>;
+  if (!product) return <Alert severity="error">Product not found</Alert>;
 
   const heroImage = displayImages[activeImageIndex];
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px' }}>
-
-      {/* ------------------------------------------------------------------ */}
-      {/* Left: Image gallery                                                  */}
-      {/* ------------------------------------------------------------------ */}
-      <div>
-        {/* Hero image */}
-        <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: '10px' }}>
-          <div style={{ height: '420px', background: '#f8f8f8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <Container sx={{ py: 4 }}>
+      <Grid container spacing={4}>
+        <Grid item xs={12} md={6}>
+          <Card sx={{ overflow: 'hidden' }}>
             {heroImage ? (
-              <img
-                src={heroImage.url}
-                alt={heroImage.alt_text || product.name}
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              />
+              <CardMedia component="img" height="420" image={heroImage.url} alt={heroImage.alt_text || product.name} />
             ) : (
-              <span style={{ color: '#aaa' }}>No image available</span>
+              <Box sx={{ height: 420, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'grey.100' }}>
+                <Typography color="text.secondary">No image available</Typography>
+              </Box>
             )}
-          </div>
-        </div>
+          </Card>
 
-        {/* Thumbnail strip */}
-        {displayImages.length > 1 && (
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {displayImages.map((img, idx) => (
-              <button
-                key={img.id}
-                onClick={() => setActiveImageIndex(idx)}
-                style={{
-                  width: '64px', height: '64px', padding: 0, border: 'none',
-                  borderRadius: '6px', overflow: 'hidden', cursor: 'pointer',
-                  outline: idx === activeImageIndex ? '2px solid #3498db' : '2px solid transparent',
-                  opacity: idx === activeImageIndex ? 1 : 0.7
-                }}
-              >
-                <img
-                  src={img.url}
-                  alt={img.alt_text || `View ${idx + 1}`}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+          {displayImages.length > 1 && (
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 2 }}>
+              {displayImages.map((img, idx) => (
+                <Box
+                  key={img.id}
+                  component="button"
+                  onClick={() => setActiveImageIndex(idx)}
+                  sx={{
+                    width: 64, height: 64, p: 0, border: 'none', borderRadius: 1, overflow: 'hidden', cursor: 'pointer',
+                    outline: idx === activeImageIndex ? '2px solid' : '2px solid transparent'
+                  }}
+                >
+                  <Box component="img" src={img.url} alt={img.alt_text || `View ${idx + 1}`} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                </Box>
+              ))}
+            </Box>
+          )}
+        </Grid>
 
-      {/* ------------------------------------------------------------------ */}
-      {/* Right: Product info                                                  */}
-      {/* ------------------------------------------------------------------ */}
-      <div>
-        <h1 style={{ marginBottom: '6px' }}>{product.name}</h1>
+        <Grid item xs={12} md={6}>
+          <Typography variant="h4" sx={{ mb: 1 }}>{product.name}</Typography>
 
-        {stats && (
-          <div style={{ marginBottom: '12px', color: '#888', fontSize: '14px' }}>
-            ⭐ {stats.average_rating?.toFixed(1) || '—'} / 5
-            <span style={{ marginLeft: '8px' }}>({stats.review_count || 0} reviews)</span>
-          </div>
-        )}
+          {stats && (
+            <Typography color="text.secondary" sx={{ mb: 2 }}>
+              ⭐ {stats.average_rating?.toFixed(1) || '—'} / 5 ({stats.review_count || 0} reviews)
+            </Typography>
+          )}
 
-        <div className="card" style={{ marginBottom: '20px' }}>
-          {/* Price */}
-          <div style={{ marginBottom: '16px' }}>
-            <span style={{ fontSize: '28px', fontWeight: 'bold', color: '#2c3e50' }}>
+          <Box sx={{ mb: 3, p: 2, borderRadius: 1, bgcolor: 'background.paper', boxShadow: 1 }}>
+            <Typography variant="h5" sx={{ fontWeight: 700 }}>
               ₹{effectivePrice.toFixed(2)}
-            </span>
+            </Typography>
             {selectedVariant && Number(selectedVariant.price_delta) !== 0 && (
-              <span style={{ fontSize: '13px', color: '#888', marginLeft: '8px' }}>
+              <Typography variant="body2" color="text.secondary">
                 (base ₹{Number(product.price).toFixed(2)}
                 {Number(selectedVariant.price_delta) > 0 ? ' + ' : ' − '}
                 ₹{Math.abs(Number(selectedVariant.price_delta)).toFixed(2)} for {selectedVariant.color_name})
-              </span>
+              </Typography>
             )}
-          </div>
 
-          {/* Description */}
-          <p style={{ color: '#555', marginBottom: '16px', lineHeight: '1.6' }}>
-            {product.description}
-          </p>
+            <Typography sx={{ color: 'text.secondary', mt: 2 }}>{product.description}</Typography>
 
-          {/* Color picker */}
-          {hasVariants && (
-            <div style={{ marginBottom: '16px' }}>
-              <p style={{ fontWeight: '600', marginBottom: '8px' }}>
-                Color:{' '}
-                <span style={{ fontWeight: 'normal', color: '#555' }}>
-                  {selectedVariant?.color_name || 'Select a color'}
-                </span>
-              </p>
-              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                {product.variants.map(v => (
-                  <button
-                    key={v.id}
-                    title={v.color_name}
-                    onClick={() => setSelectedVariantId(v.id)}
-                    style={{
-                      width: '36px', height: '36px', borderRadius: '50%',
-                      background: v.color_hex || '#ccc',
-                      border: v.id === selectedVariantId
-                        ? '3px solid #3498db'
-                        : '2px solid #ccc',
-                      cursor: 'pointer', padding: 0,
-                      boxShadow: v.id === selectedVariantId ? '0 0 0 2px #fff inset' : 'none',
-                      opacity: v.stock === 0 ? 0.35 : 1
-                    }}
-                  />
-                ))}
-              </div>
-              {selectedVariant?.stock === 0 && (
-                <p style={{ color: '#e74c3c', fontSize: '13px', marginTop: '6px' }}>
-                  This color is out of stock
-                </p>
-              )}
-            </div>
-          )}
+            {hasVariants && (
+              <Box sx={{ mt: 2 }}>
+                <Typography sx={{ fontWeight: 600, mb: 1 }}>Color: <Typography component="span" sx={{ fontWeight: 'normal', color: 'text.secondary' }}>{selectedVariant?.color_name || 'Select a color'}</Typography></Typography>
+                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+                  {product.variants.map(v => (
+                    <Box
+                      key={v.id}
+                      component="button"
+                      onClick={() => setSelectedVariantId(v.id)}
+                      title={v.color_name}
+                      sx={{
+                        width: 36, height: 36, borderRadius: '50%', background: v.color_hex || '#ccc',
+                        border: v.id === selectedVariantId ? '3px solid' : '2px solid', borderColor: v.id === selectedVariantId ? 'primary.main' : 'grey.300',
+                        cursor: 'pointer', p: 0, boxShadow: v.id === selectedVariantId ? '0 0 0 2px #fff inset' : 'none', opacity: v.stock === 0 ? 0.35 : 1
+                      }}
+                    />
+                  ))}
+                </Stack>
+                {selectedVariant?.stock === 0 && (
+                  <Typography color="error" sx={{ fontSize: 13, mt: 1 }}>This color is out of stock</Typography>
+                )}
+              </Box>
+            )}
 
-          {/* Stock */}
-          <div style={{ marginBottom: '16px' }}>
-            <strong>Stock: </strong>
-            <span style={{ color: availableStock > 0 ? '#27ae60' : '#e74c3c' }}>
-              {availableStock > 0 ? `${availableStock} available` : 'Out of stock'}
-            </span>
-          </div>
+            <Box sx={{ mt: 2 }}>
+              <Typography component="span" sx={{ mr: 1 }}>Stock:</Typography>
+              <Typography component="span" sx={{ color: availableStock > 0 ? 'success.main' : 'error.main' }}>{availableStock > 0 ? `${availableStock} available` : 'Out of stock'}</Typography>
+            </Box>
 
-          {/* Quantity */}
-          {availableStock > 0 && (
-            <div className="form-group">
-              <label className="form-label">Quantity</label>
-              <input
-                type="number"
-                min="1"
-                max={availableStock}
-                value={quantity}
-                onChange={e => setQuantity(Math.max(1, Math.min(availableStock, parseInt(e.target.value) || 1)))}
-                className="form-input"
-                style={{ width: '80px' }}
-              />
-            </div>
-          )}
+            {availableStock > 0 && (
+              <Box sx={{ mt: 2, width: 120 }}>
+                <TextField
+                  label="Quantity"
+                  type="number"
+                  size="small"
+                  inputProps={{ min: 1, max: availableStock }}
+                  value={quantity}
+                  onChange={e => setQuantity(Math.max(1, Math.min(availableStock, parseInt(e.target.value) || 1)))}
+                />
+              </Box>
+            )}
 
-          {added && <div className="alert alert-success" style={{ marginBottom: '10px' }}>Added to cart!</div>}
+            {added && <Alert severity="success" sx={{ mt: 2 }}>Added to cart!</Alert>}
 
-          <button
-            onClick={handleAddToCart}
-            disabled={availableStock === 0 || (hasVariants && !selectedVariantId)}
-            className="btn btn-primary btn-block"
-            style={{ marginBottom: '10px' }}
-          >
-            {availableStock === 0
-              ? 'Out of Stock'
-              : hasVariants && !selectedVariantId
-              ? 'Select a Color'
-              : 'Add to Cart'}
-          </button>
+            <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+              <Button
+                variant="contained"
+                onClick={handleAddToCart}
+                disabled={availableStock === 0 || (hasVariants && !selectedVariantId)}
+              >
+                {availableStock === 0 ? 'Out of Stock' : hasVariants && !selectedVariantId ? 'Select a Color' : 'Add to Cart'}
+              </Button>
+              <Button variant="outlined" onClick={() => navigate('/products')}>← Back to Products</Button>
+            </Box>
+          </Box>
 
-          <button onClick={() => navigate('/products')} className="btn btn-secondary btn-block">
-            ← Back to Products
-          </button>
-        </div>
-
-        {/* Reviews */}
-        <div className="card">
-          <h3 className="card-title">Reviews</h3>
-          {reviews.length > 0 ? (
-            reviews.slice(0, 3).map(review => (
-              <div key={review.id} style={{ borderBottom: '1px solid #eee', paddingBottom: '10px', marginBottom: '10px' }}>
-                <div style={{ fontWeight: 'bold' }}>⭐ {review.rating} — {review.author_name}</div>
-                <p style={{ color: '#888', fontSize: '12px', margin: '2px 0' }}>
-                  {new Date(review.created_at).toLocaleDateString()}
-                </p>
-                <p style={{ margin: 0 }}>{review.text}</p>
-              </div>
-            ))
-          ) : (
-            <p className="text-muted">No reviews yet</p>
-          )}
-        </div>
-      </div>
-    </div>
+          <Box>
+            <Typography variant="h6" sx={{ mb: 1 }}>Reviews</Typography>
+            {reviews.length > 0 ? (
+              reviews.slice(0, 3).map(review => (
+                <Box key={review.id} sx={{ borderBottom: '1px solid', borderColor: 'divider', pb: 1, mb: 1 }}>
+                  <Typography sx={{ fontWeight: 'bold' }}>⭐ {review.rating} — {review.author_name}</Typography>
+                  <Typography color="text.secondary" sx={{ fontSize: 12 }}>{new Date(review.created_at).toLocaleDateString()}</Typography>
+                  <Typography sx={{ mt: 1 }}>{review.text}</Typography>
+                </Box>
+              ))
+            ) : (
+              <Typography color="text.secondary">No reviews yet</Typography>
+            )}
+          </Box>
+        </Grid>
+      </Grid>
+    </Container>
   );
 }
 

@@ -18,6 +18,19 @@ import { orderService } from '../services/orderService';
 import { addressService } from '../services/addressService';
 import AddressForm from '../components/AddressForm';
 import toast from '../components/toast';
+import Container from '@mui/material/Container';
+import Grid from '@mui/material/Grid';
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+import Button from '@mui/material/Button';
+import Paper from '@mui/material/Paper';
+import Alert from '@mui/material/Alert';
+import CircularProgress from '@mui/material/CircularProgress';
+import List from '@mui/material/List';
+import ListItem from '@mui/material/ListItem';
+import ListItemText from '@mui/material/ListItemText';
+import Divider from '@mui/material/Divider';
+import Chip from '@mui/material/Chip';
 
 // ---------------------------------------------------------------------------
 // Razorpay helper
@@ -54,46 +67,25 @@ function openRazorpayModal({ razorpayOrderId, amount, currency = 'INR', keyId, u
 function AddressCard({ address, selected, onSelect, accountPhone }) {
   const phone = address.use_account_phone ? accountPhone : address.phone;
   return (
-    <div
+    <Paper
       onClick={onSelect}
-      style={{
-        border: `2px solid ${selected ? '#3498db' : '#ddd'}`,
-        borderRadius: '8px', padding: '14px 16px', cursor: 'pointer',
-        background: selected ? '#f0f8ff' : '#fff', marginBottom: '10px',
-        transition: 'border-color 0.15s'
-      }}
+      sx={{ p: 2, mb: 1, cursor: 'pointer', border: 2, borderColor: selected ? 'primary.main' : 'divider', bgcolor: selected ? 'action.selected' : 'background.paper' }}
+      elevation={0}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
-          <span style={{
-            fontSize: '11px', fontWeight: '600', background: '#e8f4fd',
-            color: '#3498db', padding: '2px 8px', borderRadius: '10px', marginRight: '8px'
-          }}>
-            {address.label}
-          </span>
-          {address.is_default && (
-            <span style={{
-              fontSize: '11px', background: '#e8f8e8', color: '#27ae60',
-              padding: '2px 8px', borderRadius: '10px'
-            }}>Default</span>
-          )}
-          <p style={{ margin: '8px 0 2px', fontWeight: '600' }}>{address.name}</p>
-          <p style={{ margin: '0 0 2px', color: '#555', fontSize: '14px' }}>{address.street}</p>
-          <p style={{ margin: '0 0 2px', color: '#555', fontSize: '14px' }}>
-            {address.city}, {address.state} — {address.pincode}
-          </p>
-          <p style={{ margin: '0', color: '#888', fontSize: '13px' }}>📞 {phone || '—'}</p>
-        </div>
-        <div style={{
-          width: '20px', height: '20px', borderRadius: '50%', flexShrink: 0,
-          border: `2px solid ${selected ? '#3498db' : '#ccc'}`,
-          background: selected ? '#3498db' : '#fff',
-          display: 'flex', alignItems: 'center', justifyContent: 'center'
-        }}>
-          {selected && <span style={{ color: '#fff', fontSize: '12px' }}>✓</span>}
-        </div>
-      </div>
-    </div>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+        <Box>
+          <Chip label={address.label} size="small" sx={{ mr: 1 }} />
+          {address.is_default && <Chip label="Default" color="success" size="small" />}
+          <Typography sx={{ fontWeight: 600, mt: 1 }}>{address.name}</Typography>
+          <Typography color="text.secondary">{address.street}</Typography>
+          <Typography color="text.secondary">{address.city}, {address.state} — {address.pincode}</Typography>
+          <Typography color="text.secondary">📞 {phone || '—'}</Typography>
+        </Box>
+        <Box sx={{ width: 24, height: 24, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 1, borderColor: selected ? 'primary.main' : 'grey.300', bgcolor: selected ? 'primary.main' : 'transparent' }}>
+          {selected && <Typography sx={{ color: '#fff', fontSize: 12 }}>✓</Typography>}
+        </Box>
+      </Box>
+    </Paper>
   );
 }
 
@@ -145,10 +137,12 @@ function CheckoutPage() {
 
   if (items.length === 0) {
     return (
-      <div className="card" style={{ textAlign: 'center' }}>
-        <p>No items in cart</p>
-        <button onClick={() => navigate('/cart')} className="btn btn-primary">Back to Cart</button>
-      </div>
+      <Container sx={{ py: 6 }}>
+        <Paper sx={{ p: 4, textAlign: 'center' }}>
+          <Typography>No items in cart</Typography>
+          <Button sx={{ mt: 2 }} variant="contained" onClick={() => navigate('/cart')}>Back to Cart</Button>
+        </Paper>
+      </Container>
     );
   }
 
@@ -236,39 +230,25 @@ function CheckoutPage() {
   // ---------------------------------------------------------------------------
 
   const OrderSummary = () => (
-    <div>
-      <h2 className="card-title">Order Summary</h2>
-      <div className="card">
-        <table className="table">
-          <thead>
-            <tr><th>Product</th><th>Qty</th><th>Price</th></tr>
-          </thead>
-          <tbody>
-            {items.map(item => (
-              <tr key={item.id}>
-                <td>
-                  {item.name}
-                  {item.selectedVariantName && (
-                    <span style={{ color: '#888', fontSize: '12px' }}> ({item.selectedVariantName})</span>
-                  )}
-                </td>
-                <td>{item.quantity}</td>
-                <td>₹{(Number(item.price) * item.quantity).toFixed(2)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <div style={{ borderTop: '2px solid #ddd', paddingTop: '10px', marginTop: '10px', fontSize: '18px', fontWeight: 'bold' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>Total:</span>
-            <span>₹{total.toFixed(2)}</span>
-          </div>
-        </div>
-      </div>
-      <div className="alert alert-info" style={{ marginTop: '12px', fontSize: '13px' }}>
-        🔒 Payments processed securely via Razorpay
-      </div>
-    </div>
+    <Box>
+      <Typography variant="h6">Order Summary</Typography>
+      <Paper sx={{ mt: 1, p: 2 }}>
+        <List dense>
+          {items.map(item => (
+            <ListItem key={item.id} sx={{ py: 0 }}>
+              <ListItemText primary={item.name} secondary={`Qty: ${item.quantity}`} />
+              <Typography>₹{(Number(item.price) * item.quantity).toFixed(2)}</Typography>
+            </ListItem>
+          ))}
+        </List>
+        <Divider sx={{ my: 1 }} />
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', mt: 1 }}>
+          <span>Total:</span>
+          <span>₹{total.toFixed(2)}</span>
+        </Box>
+      </Paper>
+      <Alert severity="info" sx={{ mt: 2 }}>🔒 Payments processed securely via Razorpay</Alert>
+    </Box>
   );
 
   // ---------------------------------------------------------------------------
@@ -276,7 +256,11 @@ function CheckoutPage() {
   // ---------------------------------------------------------------------------
 
   if (step === 'loading') {
-    return <div className="loading"><div className="spinner" />Loading…</div>;
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 6 }}>
+        <CircularProgress />
+      </Box>
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -285,28 +269,30 @@ function CheckoutPage() {
 
   if (step === 'add') {
     return (
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-            {addresses.length > 0 && (
-              <button onClick={() => setStep('select')} className="btn btn-secondary" style={{ padding: '6px 12px' }}>
-                ← Back
-              </button>
-            )}
-            <h1 className="card-title" style={{ margin: 0 }}>Add Delivery Address</h1>
-          </div>
-          <div className="card">
-            <AddressForm
-              accountPhone={user?.phone}
-              onSubmit={handleSaveAddress}
-              onCancel={addresses.length > 0 ? () => setStep('select') : null}
-              loading={formLoading}
-              submitLabel="Save & Continue"
-            />
-          </div>
-        </div>
-        <OrderSummary />
-      </div>
+      <Container sx={{ py: 4 }}>
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={6}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+              {addresses.length > 0 && (
+                <Button onClick={() => setStep('select')} variant="outlined">← Back</Button>
+              )}
+              <Typography variant="h5">Add Delivery Address</Typography>
+            </Box>
+            <Paper sx={{ p: 2 }}>
+              <AddressForm
+                accountPhone={user?.phone}
+                onSubmit={handleSaveAddress}
+                onCancel={addresses.length > 0 ? () => setStep('select') : null}
+                loading={formLoading}
+                submitLabel="Save & Continue"
+              />
+            </Paper>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <OrderSummary />
+          </Grid>
+        </Grid>
+      </Container>
     );
   }
 
@@ -317,62 +303,43 @@ function CheckoutPage() {
   const selectedAddress = addresses.find(a => a.id === selectedAddressId);
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-      <div>
-        <h1 className="card-title">Delivery Address</h1>
+    <Container sx={{ py: 4 }}>
+      <Grid container spacing={3}>
+        <Grid item xs={12} md={6}>
+          <Typography variant="h5" sx={{ mb: 2 }}>Delivery Address</Typography>
 
-        {error && <div className="alert alert-danger">{error}</div>}
+          {error && <Alert severity="error">{error}</Alert>}
 
-        {/* Address list */}
-        {addresses.map(addr => (
-          <AddressCard
-            key={addr.id}
-            address={addr}
-            selected={addr.id === selectedAddressId}
-            onSelect={() => setSelectedAddressId(addr.id)}
-            accountPhone={user?.phone}
-          />
-        ))}
+          {addresses.map(addr => (
+            <AddressCard
+              key={addr.id}
+              address={addr}
+              selected={addr.id === selectedAddressId}
+              onSelect={() => setSelectedAddressId(addr.id)}
+              accountPhone={user?.phone}
+            />
+          ))}
 
-        {/* Add new */}
-        <button
-          onClick={() => setStep('add')}
-          className="btn btn-secondary"
-          style={{ width: '100%', marginBottom: '20px', borderStyle: 'dashed' }}
-        >
-          + Add New Address
-        </button>
+          <Button variant="outlined" fullWidth sx={{ my: 2 }} onClick={() => setStep('add')}>+ Add New Address</Button>
 
-        {/* Selected address summary */}
-        {selectedAddress && (
-          <div className="card" style={{ background: '#f0f8ff', border: '1px solid #3498db' }}>
-            <p style={{ margin: '0 0 4px', fontWeight: '600', color: '#2c3e50' }}>Delivering to:</p>
-            <p style={{ margin: '0', color: '#555', fontSize: '14px' }}>
-              {selectedAddress.name} · {selectedAddress.street}, {selectedAddress.city}, {selectedAddress.state} {selectedAddress.pincode}
-            </p>
-          </div>
-        )}
+          {selectedAddress && (
+            <Paper sx={{ p: 2, bgcolor: 'action.selected', border: 1, borderColor: 'primary.main' }}>
+              <Typography sx={{ fontWeight: 600 }}>Delivering to:</Typography>
+              <Typography color="text.secondary">{selectedAddress.name} · {selectedAddress.street}, {selectedAddress.city}, {selectedAddress.state} {selectedAddress.pincode}</Typography>
+            </Paper>
+          )}
 
-        <button
-          onClick={handlePay}
-          disabled={payLoading || !selectedAddressId}
-          className="btn btn-primary btn-block"
-          style={{ marginTop: '16px', fontSize: '16px', padding: '12px' }}
-        >
-          {payLoading ? 'Processing…' : `Pay ₹${total.toFixed(2)} with Razorpay`}
-        </button>
+          <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+            <Button variant="contained" onClick={handlePay} disabled={payLoading || !selectedAddressId}>{payLoading ? 'Processing…' : `Pay ₹${total.toFixed(2)} with Razorpay`}</Button>
+            <Button variant="outlined" onClick={() => navigate('/cart')}>← Back to Cart</Button>
+          </Box>
+        </Grid>
 
-        <button
-          onClick={() => navigate('/cart')}
-          className="btn btn-secondary btn-block"
-          style={{ marginTop: '8px' }}
-        >
-          ← Back to Cart
-        </button>
-      </div>
-
-      <OrderSummary />
-    </div>
+        <Grid item xs={12} md={6}>
+          <OrderSummary />
+        </Grid>
+      </Grid>
+    </Container>
   );
 }
 

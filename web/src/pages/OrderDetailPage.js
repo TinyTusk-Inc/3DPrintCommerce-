@@ -1,6 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { orderService } from '../services/orderService';
+import Container from '@mui/material/Container';
+import Grid from '@mui/material/Grid';
+import Paper from '@mui/material/Paper';
+import Typography from '@mui/material/Typography';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableContainer from '@mui/material/TableContainer';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
+import Alert from '@mui/material/Alert';
+import Chip from '@mui/material/Chip';
+import Box from '@mui/material/Box';
+import CircularProgress from '@mui/material/CircularProgress';
 
 function OrderDetailPage() {
   const { orderId } = useParams();
@@ -26,122 +40,93 @@ function OrderDetailPage() {
   };
 
   if (loading) {
-    return <div className="loading"><div className="spinner"></div>Loading...</div>;
+    return <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>;
   }
 
   if (error || !order) {
-    return <div className="alert alert-danger">{error || 'Order not found'}</div>;
+    return <Container sx={{ py: 4 }}><Alert severity="error">{error || 'Order not found'}</Alert></Container>;
   }
 
   return (
-    <div>
-      <h1 className="card-title">Order {order.id.substring(0, 8)}</h1>
+    <Container sx={{ py: 4 }}>
+      <Typography variant="h4" sx={{ mb: 2 }}>Order {order.id.substring(0,8)}</Typography>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px' }}>
-        <div>
-          <div className="card">
-            <h3 className="card-title">Order Details</h3>
-            <div className="mb-3" style={{ borderBottom: '1px solid #ddd', paddingBottom: '10px' }}>
-              <strong>Order ID:</strong> {order.id}
-            </div>
-            <div className="mb-3" style={{ borderBottom: '1px solid #ddd', paddingBottom: '10px' }}>
-              <strong>Date:</strong> {new Date(order.created_at).toLocaleDateString()}
-            </div>
-            <div className="mb-3" style={{ borderBottom: '1px solid #ddd', paddingBottom: '10px' }}>
-              <strong>Status:</strong> <span style={{ textTransform: 'capitalize' }}>{order.status}</span>
-            </div>
-
+      <Grid container spacing={3}>
+        <Grid item xs={12} md={8}>
+          <Paper sx={{ p: 2, mb: 2 }}>
+            <Typography variant="h6">Order Details</Typography>
+            <Box sx={{ mt: 1 }}>
+              <Typography><strong>Order ID:</strong> {order.id}</Typography>
+              <Typography><strong>Date:</strong> {new Date(order.created_at).toLocaleDateString()}</Typography>
+              <Typography><strong>Status:</strong> <Box component="span" sx={{ textTransform: 'capitalize' }}>{order.status}</Box></Typography>
+            </Box>
             {order.razorpay_payment_id && (
-              <div className="mb-3" style={{ borderBottom: '1px solid #ddd', paddingBottom: '10px' }}>
-                <strong>Payment ID:</strong> {order.razorpay_payment_id}
-              </div>
+              <Box sx={{ mt: 1 }}><Typography><strong>Payment ID:</strong> {order.razorpay_payment_id}</Typography></Box>
             )}
-          </div>
+          </Paper>
 
-          <div className="card">
-            <h3 className="card-title">Shipping Address</h3>
+          <Paper sx={{ p: 2, mb: 2 }}>
+            <Typography variant="h6">Shipping Address</Typography>
             {order.shipping_address ? (
-              <>
-                <p>{order.shipping_address.name}</p>
-                <p>{order.shipping_address.street}</p>
-                <p>{order.shipping_address.city}, {order.shipping_address.state} {order.shipping_address.zip}</p>
-                <p>{order.shipping_address.country}</p>
-                <p>{order.shipping_address.phone}</p>
-              </>
+              <Box sx={{ mt: 1 }}>
+                <Typography>{order.shipping_address.name}</Typography>
+                <Typography color="text.secondary">{order.shipping_address.street}</Typography>
+                <Typography color="text.secondary">{order.shipping_address.city}, {order.shipping_address.state} {order.shipping_address.zip}</Typography>
+                <Typography color="text.secondary">{order.shipping_address.country}</Typography>
+                <Typography color="text.secondary">{order.shipping_address.phone}</Typography>
+              </Box>
             ) : (
-              <p>No shipping address</p>
+              <Typography>No shipping address</Typography>
             )}
-          </div>
+          </Paper>
 
-          <div className="card">
-            <h3 className="card-title">Items</h3>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="h6">Items</Typography>
             {order.items && order.items.length > 0 ? (
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Product</th>
-                    <th>Qty</th>
-                    <th>Price</th>
-                    <th>Subtotal</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {order.items.map(item => (
-                    <tr key={item.id}>
-                      <td>{item.product_name}</td>
-                      <td>{item.quantity}</td>
-                      <td>₹{item.price_at_purchase.toFixed(2)}</td>
-                      <td>₹{(item.quantity * item.price_at_purchase).toFixed(2)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Product</TableCell>
+                      <TableCell>Qty</TableCell>
+                      <TableCell>Price</TableCell>
+                      <TableCell>Subtotal</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {order.items.map(item => (
+                      <TableRow key={item.id}>
+                        <TableCell>{item.product_name}</TableCell>
+                        <TableCell>{item.quantity}</TableCell>
+                        <TableCell>₹{item.price_at_purchase.toFixed(2)}</TableCell>
+                        <TableCell>₹{(item.quantity * item.price_at_purchase).toFixed(2)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
             ) : (
-              <p>No items</p>
+              <Typography>No items</Typography>
             )}
-          </div>
-        </div>
+          </Paper>
+        </Grid>
 
-        <aside>
-          <div className="card">
-            <h3 className="card-title">Order Summary</h3>
-            <div className="mb-3" style={{ fontSize: '24px', fontWeight: 'bold', color: '#27ae60' }}>
-              ₹{order.total_price.toFixed(2)}
-            </div>
+        <Grid item xs={12} md={4}>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="h6">Order Summary</Typography>
+            <Box sx={{ mt: 1, mb: 2 }}>
+              <Typography variant="h5" sx={{ fontWeight: 'bold', color: 'success.main' }}>₹{order.total_price.toFixed(2)}</Typography>
+            </Box>
 
-            {order.status === 'pending' && (
-              <div className="alert alert-warning">
-                ⏳ Awaiting payment
-              </div>
-            )}
-
-            {order.status === 'paid' && (
-              <div className="alert alert-info">
-                ✅ Payment confirmed, awaiting fulfillment
-              </div>
-            )}
-
-            {order.status === 'shipped' && (
-              <div className="alert alert-info">
-                📦 Order has been shipped
-              </div>
-            )}
-
-            {order.status === 'delivered' && (
-              <div className="alert alert-success">
-                ✓ Delivered
-              </div>
-            )}
-
-            {order.status === 'cancelled' && (
-              <div className="alert alert-danger">
-                ✗ Cancelled
-              </div>
-            )}
-          </div>
-        </aside>
-      </div>
-    </div>
+            {order.status === 'pending' && <Alert severity="warning">⏳ Awaiting payment</Alert>}
+            {order.status === 'paid' && <Alert severity="info">✅ Payment confirmed, awaiting fulfillment</Alert>}
+            {order.status === 'shipped' && <Alert severity="info">📦 Order has been shipped</Alert>}
+            {order.status === 'delivered' && <Alert severity="success">✓ Delivered</Alert>}
+            {order.status === 'cancelled' && <Alert severity="error">✗ Cancelled</Alert>}
+          </Paper>
+        </Grid>
+      </Grid>
+    </Container>
   );
 }
 
