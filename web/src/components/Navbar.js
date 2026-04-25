@@ -2,6 +2,11 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/index';
 import { useCart } from '../hooks/index';
+import AppBar from '@mui/material/AppBar';
+import Toolbar from '@mui/material/Toolbar';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Badge from '@mui/material/Badge';
 
 function Navbar() {
   const { isAuthenticated, isAdmin, user, logout } = useAuth();
@@ -13,71 +18,65 @@ function Navbar() {
   };
 
   return (
-    <nav className="navbar">
-      <div className="navbar-container">
-        <Link to="/" className="navbar-brand">
-          🖨️ 3D Print Commerce
-        </Link>
+    <AppBar position="sticky" color="primary">
+      <Toolbar sx={{ minHeight: 'var(--navbar-height, 64px)' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+          <Link to="/" style={{ display: 'block', height: '100%' }}>
+            <Box
+              component="img"
+              src={process.env.PUBLIC_URL + '/assets/logo_transperant.png'}
+              alt="3D Print Commerce"
+              sx={{ height: '100%', width: 'auto', maxHeight: 64 }}
+            />
+          </Link>
+        </Box>
 
-        <ul className="navbar-nav">
-          <li>
-            <Link to="/products" className="nav-link">
-              Products
-            </Link>
-          </li>
+        <Box sx={{ flexGrow: 1 }} />
+
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+          <Button color="inherit" component={Link} to="/products">
+            Products
+          </Button>
 
           {isAuthenticated ? (
             <>
-              <li>
-                <Link to="/orders" className="nav-link">
-                  Orders
-                </Link>
-              </li>
-              <li>
-                <Link to="/cart" className="nav-link">
+              <Button color="inherit" component={Link} to="/orders">
+                Orders
+              </Button>
+
+              <Button color="inherit" component={Link} to="/cart">
+                <Badge badgeContent={itemCount} color="error">
                   Cart
-                  {itemCount > 0 && <span className="cart-badge">{itemCount}</span>}
-                </Link>
-              </li>
+                </Badge>
+              </Button>
+
               {isAdmin && (
-                <li>
-                  <Link to="/admin" className="nav-link">
-                    Admin
-                  </Link>
-                </li>
+                <Button color="inherit" component={Link} to="/admin">
+                  Admin
+                </Button>
               )}
-              <li>
-                <Link to="/profile" className="nav-link">
-                  {user?.name || 'Profile'}
-                </Link>
-              </li>
-              <li>
-                <button
-                  onClick={handleLogout}
-                  className="nav-link"
-                  style={{ background: 'none', border: 'none', padding: '8px 12px' }}
-                >
-                  Logout
-                </button>
-              </li>
+
+              <Button color="inherit" component={Link} to="/profile">
+                {user?.name || 'Profile'}
+              </Button>
+
+              <Button color="inherit" onClick={handleLogout}>
+                Logout
+              </Button>
             </>
           ) : (
             <>
-              <li>
-                <Link to="/login" className="nav-link">
-                  Login
-                </Link>
-              </li>
-              <li>
-                <Link to="/register" className="nav-link">
-                  Register
-                </Link>
-              </li>
+              <Button color="inherit" component={Link} to="/login">
+                Login
+              </Button>
+              <Button color="inherit" component={Link} to="/register">
+                Register
+              </Button>
             </>
           )}
-        </ul>
-      </div>
-    </nav>
+        </Box>
+      </Toolbar>
+    </AppBar>
   );
 }
 

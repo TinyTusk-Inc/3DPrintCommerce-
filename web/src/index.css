@@ -31,14 +31,13 @@ html {
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 20px;
 }
 
 /* Navbar */
 .navbar {
   background-color: #2c3e50;
   color: white;
-  padding: 15px 20px;
+  --navbar-height: 64px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   position: sticky;
   top: 0;
@@ -51,6 +50,7 @@ html {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  height: var(--navbar-height);
 }
 
 .navbar-brand {
@@ -58,6 +58,23 @@ html {
   font-weight: bold;
   text-decoration: none;
   color: white;
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+/* Logo should flex to fill navbar height while preserving aspect ratio */
+.navbar-logo {
+  height: 100%;
+  width: auto;
+  max-height: 100%;
+  display: block;
+}
+
+@media (max-width: 600px) {
+  .navbar {
+    --navbar-height: 48px;
+  }
 }
 
 .navbar-nav {
@@ -419,6 +436,16 @@ html {
 .text-danger {
   color: #e74c3c;
 }
+
+/* Remove default MUI Container/Box paddings globally
+.MuiContainer-root {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.MuiBox-root {
+  padding: 0 !important;
+} */
 
 /* Responsive */
 @media (max-width: 768px) {

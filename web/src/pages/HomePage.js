@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { productService } from '../services/productService';
 import mainCategories from '../data/mainCategories';
-import Container from '@mui/material/Container';
+import Container, { containerClasses } from '@mui/material/Container';
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
 import Card from '@mui/material/Card';
@@ -48,7 +48,8 @@ function HomePage() {
   }
 
   return (
-    <Container sx={{ py: 4 }}>
+    <Container sx={{ py: '0 !important', px: '0 !important' }}>
+    <Container sx={{ py: '0 !important', px: '0 !important'}}>
       {/* Hero */}
       <Box
         sx={{
@@ -56,7 +57,7 @@ function HomePage() {
           color: 'common.white',
           textAlign: 'center',
           py: 8,
-          px: 3,
+          px: '0 !important',
           mb: 4,
           background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         }}
@@ -71,7 +72,8 @@ function HomePage() {
           Shop Now
         </Button>
       </Box>
-
+    </Container>
+    <Container sx={{ py: 4 }}>
       {/* Categories */}
       <Box sx={{ mb: 4 }}>
         <Typography variant="h5" gutterBottom>
@@ -157,6 +159,7 @@ function HomePage() {
           ))}
         </Grid>
       </Box>
+    </Container>
     </Container>
   );
 }
